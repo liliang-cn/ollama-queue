@@ -114,4 +114,4 @@ The library follows a modular architecture with separate components for:
 
 This design ensures scalability, reliability, and ease of maintenance.
 */
-package main
+package ollama_queue

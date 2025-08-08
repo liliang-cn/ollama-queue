@@ -1,11 +1,11 @@
-# Usage Examples
+# Ollama Queue Usage Examples
 
-This directory contains practical examples demonstrating how to use the Ollama Queue library.
+This directory contains practical examples demonstrating how to use the Ollama Queue system in both client-server and embedded library modes.
 
 ## Examples
 
-### 1. Basic Usage (`examples/basic/`)
-Demonstrates fundamental operations:
+### 1. Basic Library Usage (`examples/basic/`)
+Demonstrates fundamental embedded library operations:
 - Creating and configuring a queue manager
 - Submitting different task types (chat, generate, embed)
 - Using callbacks and channels for results
@@ -17,7 +17,24 @@ cd examples/basic
 go run main.go
 ```
 
-### 2. Streaming (`examples/streaming/`)
+### 2. Client-Server Usage (`examples/client_server/`)
+Shows how to use the client-server architecture:
+- Connecting to a running queue server
+- Submitting tasks via HTTP client
+- Monitoring tasks and queue status
+- Real-time web interface interaction
+
+**Prerequisites**: Start the server first:
+```bash
+# Terminal 1: Start the server
+ollama-queue serve
+
+# Terminal 2: Run the client example
+cd examples/client_server
+go run main.go
+```
+
+### 3. Streaming (`examples/streaming/`)
 Shows how to work with streaming tasks:
 - Real-time streaming for chat and generation tasks
 - Handling streaming data and errors
@@ -29,7 +46,7 @@ cd examples/streaming
 go run main.go
 ```
 
-### 3. Batch Processing (`examples/batch/`)
+### 4. Batch Processing (`examples/batch/`)
 Demonstrates batch operations:
 - Synchronous and asynchronous batch processing
 - Priority-based task scheduling
@@ -39,6 +56,19 @@ Demonstrates batch operations:
 Run with:
 ```bash
 cd examples/batch
+go run main.go
+```
+
+### 5. Library Integration (`examples/library_integration/`)
+Advanced embedded usage examples:
+- Complex task workflows
+- Event monitoring and callbacks
+- Production-ready configurations
+- Error handling and recovery
+
+Run with:
+```bash
+cd examples/library_integration  
 go run main.go
 ```
 
@@ -68,45 +98,56 @@ Before running the examples:
    go build ./...
    ```
 
-## Running the CLI Examples
+## Usage Modes
 
-### Submit Tasks via CLI
+### Client-Server Mode (Recommended)
 
-```bash
-# Submit a chat task
-./ollama-queue submit chat --model llama2 --messages "user:Hello, how are you?" --priority high
+The client-server mode provides better scalability and allows multiple clients to share a single queue server.
 
-# Submit a generation task with streaming
-./ollama-queue submit generate --model codellama --prompt "Write a Go function" --stream
+1. **Start the server**:
+   ```bash
+   # Start server with default settings
+   ollama-queue serve
+   
+   # Or with custom port and data directory
+   ollama-queue serve --port 9090 --data-dir ./my-queue-data
+   ```
 
-# Submit an embedding task
-./ollama-queue submit embed --model nomic-embed-text --input "Sample text to embed"
-```
+2. **Use CLI client**:
+   ```bash
+   # Submit tasks
+   ollama-queue submit chat --model llama2 --messages "user:Hello!"
+   ollama-queue submit generate --model codellama --prompt "Write a function"
+   
+   # Monitor tasks
+   ollama-queue list
+   ollama-queue status
+   
+   # Manage tasks
+   ollama-queue cancel <task-id>
+   ollama-queue priority <task-id> high
+   ```
 
-### Monitor Tasks
+3. **Use HTTP client in your applications**:
+   ```go
+   import "github.com/liliang-cn/ollama-queue/pkg/client"
+   
+   cli := client.New("localhost:8080")
+   taskID, err := cli.SubmitTask(task)
+   ```
 
-```bash
-# List all tasks
-./ollama-queue list
+4. **Access web interface**: Visit `http://localhost:8080` for real-time monitoring
 
-# List only running tasks
-./ollama-queue list --status running
+### Embedded Library Mode
 
-# Show queue statistics
-./ollama-queue status
+For applications that need direct integration without a separate server:
 
-# Show specific task status
-./ollama-queue status <task-id>
-```
+```go
+import "github.com/liliang-cn/ollama-queue/pkg/queue"
 
-### Manage Tasks
-
-```bash
-# Cancel a task
-./ollama-queue cancel <task-id>
-
-# Update task priority
-./ollama-queue priority <task-id> high
+qm, err := queue.NewQueueManagerWithOptions(...)
+defer qm.Close()
+qm.Start(ctx)
 ```
 
 ## Configuration

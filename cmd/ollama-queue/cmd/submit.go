@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/client"
 	"github.com/liliang-cn/ollama-queue/pkg/config"
 	"github.com/liliang-cn/ollama-queue/pkg/queue"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -184,34 +184,11 @@ func submitTask(cmd *cobra.Command, task *models.Task) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Override with CLI flags
-	if ollamaHost != "" {
-		cfg.OllamaHost = ollamaHost
-	}
-	if dataDir != "" {
-		cfg.StoragePath = dataDir
-	}
-
-	// Create queue manager
-	qm, err := queue.NewQueueManager(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create queue manager: %w", err)
-	}
-	defer qm.Close()
-
-	ctx := cmd.Context()
-
-	// Start queue manager
-	if err := qm.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start queue manager: %w", err)
-	}
+	// Create a new client
+	cli := client.New(cfg.ListenAddr)
 
 	// Submit task
-	if taskStream && (task.Type == models.TaskTypeChat || task.Type == models.TaskTypeGenerate) {
-		return submitStreamingTask(ctx, qm, task)
-	}
-
-	taskID, err := qm.SubmitTask(task)
+	taskID, err := cli.SubmitTask(task)
 	if err != nil {
 		return fmt.Errorf("failed to submit task: %w", err)
 	}
@@ -307,23 +284,4 @@ func parseMessages(messages []string) ([]models.ChatMessage, error) {
 	}
 
 	return result, nil
-}
-
-func parsePriority(priority string) (models.Priority, error) {
-	switch strings.ToLower(priority) {
-	case "low":
-		return models.PriorityLow, nil
-	case "normal":
-		return models.PriorityNormal, nil
-	case "high":
-		return models.PriorityHigh, nil
-	case "critical":
-		return models.PriorityCritical, nil
-	default:
-		// Try to parse as integer
-		if p, err := strconv.Atoi(priority); err == nil {
-			return models.Priority(p), nil
-		}
-		return 0, fmt.Errorf("invalid priority: %s (valid values: low, normal, high, critical, or integer)", priority)
-	}
 }

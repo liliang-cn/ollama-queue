@@ -24,6 +24,9 @@ type Config struct {
 	// Logging configuration
 	LogLevel string `json:"log_level" yaml:"log_level"`
 	LogFile  string `json:"log_file" yaml:"log_file"`
+
+	// Server configuration
+	ListenAddr string `json:"listen_addr" yaml:"listen_addr"`
 }
 
 // RetryConfig represents retry configuration for failed tasks
@@ -57,5 +60,7 @@ func DefaultConfig() *Config {
 		
 		LogLevel: "info",
 		LogFile:  "",
+
+		ListenAddr: "localhost:8080",
 	}
 }

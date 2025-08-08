@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Queue Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --primary-dark: #5a6fd8;
+            --secondary-color: #764ba2;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --info-color: #3b82f6;
+            --dark-bg: #0f172a;
+            --dark-card: #1e293b;
+            --dark-border: #334155;
+            --light-text: #f8fafc;
+            --muted-text: #94a3b8;
+            --gradient: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--dark-bg);
+            color: var(--light-text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            background: var(--gradient);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-content {
+            flex: 1;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 200px;
+            height: 200px;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2"/><circle cx="50" cy="50" r="25" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/><circle cx="50" cy="50" r="10" fill="rgba(255,255,255,0.1)"/></svg>') no-repeat center;
+            opacity: 0.3;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            position: relative;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            position: relative;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-status .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success-color);
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+
+        .header-status-text {
+            font-size: 0.875rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--gradient);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--muted-text);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .tasks-section {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+        }
+
+        .submit-form {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+        }
+
+        .form-toggle {
+            background: var(--gradient);
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-toggle:hover {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--secondary-color) 100%);
+        }
+
+        .form-toggle h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .form-toggle .toggle-icon {
+            margin-left: auto;
+            transition: transform 0.2s ease;
+        }
+
+        .form-toggle.expanded .toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .form-content {
+            padding: 1.5rem;
+            display: block;
+        }
+
+        .form-content.collapsed {
+            display: none;
+        }
+
+        .section-header {
+            background: var(--gradient);
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .tasks-table-container {
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .tasks-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .tasks-table th {
+            background: var(--dark-bg);
+            color: var(--muted-text);
+            padding: 1rem;
+            text-align: left;
+            font-weight: 500;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--dark-border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .tasks-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--dark-border);
+            vertical-align: middle;
+        }
+
+        .tasks-table tr {
+            transition: background-color 0.2s ease;
+        }
+
+        .tasks-table tr:hover {
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .task-id {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            background: rgba(102, 126, 234, 0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+        }
+
+        .status-badge {
+            padding: 0.375rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-pending { background: rgba(59, 130, 246, 0.1); color: var(--info-color); }
+        .status-running { 
+            background: rgba(245, 158, 11, 0.1); 
+            color: var(--warning-color);
+            animation: pulse 2s infinite;
+        }
+        .status-completed { background: rgba(16, 185, 129, 0.1); color: var(--success-color); }
+        .status-failed { background: rgba(239, 68, 68, 0.1); color: var(--error-color); }
+        .status-cancelled { background: rgba(148, 163, 184, 0.1); color: var(--muted-text); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .priority-select, .action-btn {
+            background: var(--dark-bg);
+            border: 1px solid var(--dark-border);
+            color: var(--light-text);
+            padding: 0.375rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .priority-select:hover, .priority-select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+
+        .action-btn {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .action-btn:hover {
+            background: var(--error-color);
+            border-color: var(--error-color);
+            color: white;
+        }
+
+        .prompt-preview {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--muted-text);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--light-text);
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            background: var(--dark-bg);
+            border: 1px solid var(--dark-border);
+            color: var(--light-text);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: var(--gradient);
+            border: none;
+            color: white;
+            padding: 0.875rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(102, 126, 234, 0.3);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success-color);
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+
+        @keyframes ping {
+            75%, 100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--muted-text);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header {
+                padding: 1.5rem;
+                text-align: center;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .tasks-table-container {
+                font-size: 0.875rem;
+            }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--success-color);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.error {
+            background: var(--error-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-robot"></i> Ollama Queue Dashboard</h1>
+                <p>AI Task Queue Management System</p>
+            </div>
+            <div class="header-status" id="header-status">
+                <div class="status-indicator"></div>
+                <div class="header-status-text">WebSocket Connected</div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="stat-total">0</div>
+                <div class="stat-label">Total Tasks</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="stat-pending">0</div>
+                <div class="stat-label">Pending</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="stat-running">0</div>
+                <div class="stat-label">Running</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="stat-completed">0</div>
+                <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="stat-failed">0</div>
+                <div class="stat-label">Failed</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Tasks Section -->
+            <div class="tasks-section">
+                <div class="section-header">
+                    <i class="fas fa-tasks"></i>
+                    <h2>Active Tasks</h2>
+                    <div style="margin-left: auto;" id="task-count">0 tasks</div>
+                </div>
+                <div class="tasks-table-container">
+                    <table class="tasks-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Type</th>
+                                <th>Model</th>
+                                <th>Content</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="task-table-body">
+                            <tr>
+                                <td colspan="8" class="empty-state">
+                                    <i class="fas fa-inbox"></i>
+                                    <div>No tasks yet. Submit your first task to get started!</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Submit Form -->
+            <div class="submit-form">
+                <div class="form-toggle expanded" id="form-toggle">
+                    <i class="fas fa-plus"></i>
+                    <h2>Submit New Task</h2>
+                    <i class="fas fa-chevron-up toggle-icon"></i>
+                </div>
+                <div class="form-content expanded" id="form-content">
+                    <form id="task-form">
+                        <div class="form-group">
+                            <label class="form-label" for="model">
+                                <i class="fas fa-brain"></i> Model
+                            </label>
+                            <input type="text" id="model" name="model" class="form-input" value="llama2" placeholder="Enter model name">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="type">
+                                <i class="fas fa-cog"></i> Task Type
+                            </label>
+                            <select id="type" name="type" class="form-select">
+                                <option value="chat">💬 Chat</option>
+                                <option value="generate">✨ Generate</option>
+                                <option value="embed">🔗 Embed</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="priority">
+                                <i class="fas fa-flag"></i> Priority
+                            </label>
+                            <select id="priority" name="priority" class="form-select">
+                                <option value="15">🔴 Critical</option>
+                                <option value="10">🟡 High</option>
+                                <option value="5" selected>🟢 Normal</option>
+                                <option value="1">⚪ Low</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="prompt">
+                                <i class="fas fa-edit"></i> Content
+                            </label>
+                            <textarea id="prompt" name="prompt" class="form-textarea" placeholder="Enter your prompt, question, or text to process...">Why is the sky blue?</textarea>
+                        </div>
+
+                        <button type="submit" class="submit-btn">
+                            <i class="fas fa-paper-plane"></i>
+                            Submit Task
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        class OllamaQueueDashboard {
+            constructor() {
+                this.ws = null;
+                this.reconnectDelay = 1000;
+                this.maxReconnectDelay = 30000;
+                this.reconnectAttempts = 0;
+                this.init();
+            }
+
+            init() {
+                this.connectWebSocket();
+                this.bindEvents();
+                this.updateConnectionStatus(false);
+                this.initFormToggle();
+            }
+
+            initFormToggle() {
+                const formToggle = document.getElementById('form-toggle');
+                const formContent = document.getElementById('form-content');
+                
+                formToggle.addEventListener('click', () => {
+                    const isExpanded = formContent.classList.contains('expanded');
+                    
+                    if (isExpanded) {
+                        formContent.classList.remove('expanded');
+                        formToggle.classList.remove('expanded');
+                        formToggle.querySelector('.toggle-icon').className = 'fas fa-chevron-down toggle-icon';
+                    } else {
+                        formContent.classList.add('expanded');
+                        formToggle.classList.add('expanded');
+                        formToggle.querySelector('.toggle-icon').className = 'fas fa-chevron-up toggle-icon';
+                    }
+                });
+            }
+
+            connectWebSocket() {
+                try {
+                    this.ws = new WebSocket(`ws://${location.host}/ws`);
+                    
+                    this.ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        this.updateConnectionStatus(true);
+                        this.reconnectAttempts = 0;
+                        this.reconnectDelay = 1000;
+                    };
+
+                    this.ws.onmessage = (event) => {
+                        const tasks = JSON.parse(event.data);
+                        this.updateTasks(tasks);
+                        this.updateStats(tasks);
+                    };
+
+                    this.ws.onclose = () => {
+                        console.log('WebSocket disconnected');
+                        this.updateConnectionStatus(false);
+                        this.scheduleReconnect();
+                    };
+
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.updateConnectionStatus(false);
+                    };
+                } catch (error) {
+                    console.error('Failed to create WebSocket:', error);
+                    this.updateConnectionStatus(false);
+                    this.scheduleReconnect();
+                }
+            }
+
+            scheduleReconnect() {
+                this.reconnectAttempts++;
+                const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts), this.maxReconnectDelay);
+                
+                setTimeout(() => {
+                    console.log(`Reconnecting... (attempt ${this.reconnectAttempts})`);
+                    this.connectWebSocket();
+                }, delay);
+            }
+
+            updateConnectionStatus(connected) {
+                const headerStatus = document.getElementById('header-status');
+                const statusIndicator = headerStatus.querySelector('.status-indicator');
+                const statusText = headerStatus.querySelector('.header-status-text');
+                
+                if (connected) {
+                    statusIndicator.style.background = 'var(--success-color)';
+                    statusText.textContent = 'WebSocket Connected';
+                } else {
+                    statusIndicator.style.background = 'var(--error-color)';
+                    statusText.textContent = 'WebSocket Disconnected';
+                }
+            }
+
+            updateTasks(tasks) {
+                const tableBody = document.getElementById('task-table-body');
+                const taskCount = document.getElementById('task-count');
+                
+                if (!tasks || tasks.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <div>No tasks yet. Submit your first task to get started!</div>
+                            </td>
+                        </tr>
+                    `;
+                    taskCount.textContent = '0 tasks';
+                    return;
+                }
+
+                taskCount.textContent = `${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
+
+                tableBody.innerHTML = tasks.map(task => {
+                    const shortId = task.id.substring(0, 8);
+                    const statusClass = `status-${task.status.toLowerCase()}`;
+                    const createdAt = new Date(task.created_at);
+                    const timeAgo = this.getTimeAgo(createdAt);
+                    
+                    // No need to map priority values anymore - use backend values directly
+                    return `
+                        <tr>
+                            <td>
+                                <div class="task-id" title="${task.id}">${shortId}</div>
+                            </td>
+                            <td>
+                                <span class="status-badge ${statusClass}">
+                                    ${this.getStatusIcon(task.status)} ${task.status}
+                                </span>
+                            </td>
+                            <td>
+                                <select class="priority-select" onchange="updatePriority('${task.id}', this.value)">
+                                    <option value="15" ${task.priority === 15 ? 'selected' : ''}>🔴 Critical</option>
+                                    <option value="10" ${task.priority === 10 ? 'selected' : ''}>🟡 High</option>
+                                    <option value="5" ${task.priority === 5 ? 'selected' : ''}>🟢 Normal</option>
+                                    <option value="1" ${task.priority === 1 ? 'selected' : ''}>⚪ Low</option>
+                                </select>
+                            </td>
+                            <td>
+                                <span style="text-transform: capitalize;">
+                                    ${this.getTypeIcon(task.type)} ${task.type}
+                                </span>
+                            </td>
+                            <td>
+                                <span style="font-family: monospace; background: rgba(102, 126, 234, 0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">
+                                    ${task.model || 'N/A'}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="prompt-preview" title="${this.getFullPrompt(task)}">
+                                    ${this.getPromptPreview(task)}
+                                </div>
+                            </td>
+                            <td title="${createdAt.toLocaleString()}">${timeAgo}</td>
+                            <td>
+                                ${task.status !== 'completed' && task.status !== 'cancelled' && task.status !== 'failed' 
+                                    ? `<button class="action-btn" onclick="cancelTask('${task.id}')" title="Cancel task">
+                                        <i class="fas fa-times"></i>
+                                       </button>`
+                                    : '<span style="color: var(--muted-text); font-size: 0.8rem;">—</span>'
+                                }
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            updateStats(tasks) {
+                const stats = tasks.reduce((acc, task) => {
+                    acc.total++;
+                    acc[task.status] = (acc[task.status] || 0) + 1;
+                    return acc;
+                }, { total: 0, pending: 0, running: 0, completed: 0, failed: 0, cancelled: 0 });
+
+                document.getElementById('stat-total').textContent = stats.total;
+                document.getElementById('stat-pending').textContent = stats.pending;
+                document.getElementById('stat-running').textContent = stats.running;
+                document.getElementById('stat-completed').textContent = stats.completed;
+                document.getElementById('stat-failed').textContent = stats.failed;
+            }
+
+            getStatusIcon(status) {
+                const icons = {
+                    pending: '⏳',
+                    running: '⚡',
+                    completed: '✅',
+                    failed: '❌',
+                    cancelled: '🚫'
+                };
+                return icons[status] || '❓';
+            }
+
+            getTypeIcon(type) {
+                const icons = {
+                    chat: '💬',
+                    generate: '✨',
+                    embed: '🔗'
+                };
+                return icons[type] || '🔧';
+            }
+
+            getPromptPreview(task) {
+                const content = this.getFullPrompt(task);
+                return content.length > 50 ? content.substring(0, 47) + '...' : content;
+            }
+
+            getFullPrompt(task) {
+                if (task.payload && task.payload.prompt) {
+                    return task.payload.prompt;
+                } else if (task.payload && task.payload.messages) {
+                    return task.payload.messages.map(m => `${m.role}: ${m.content}`).join(' | ');
+                } else if (task.payload && task.payload.input) {
+                    return Array.isArray(task.payload.input) ? task.payload.input.join(', ') : task.payload.input;
+                }
+                return 'No content available';
+            }
+
+            getTimeAgo(date) {
+                const now = new Date();
+                const diff = now - date;
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(diff / 3600000);
+                const days = Math.floor(diff / 86400000);
+
+                if (minutes < 1) return 'Just now';
+                if (minutes < 60) return `${minutes}m ago`;
+                if (hours < 24) return `${hours}h ago`;
+                return `${days}d ago`;
+            }
+
+            bindEvents() {
+                document.getElementById('task-form').addEventListener('submit', (event) => {
+                    event.preventDefault();
+                    this.submitTask(event.target);
+                });
+            }
+
+            async submitTask(form) {
+                const submitBtn = form.querySelector('.submit-btn');
+                const originalContent = submitBtn.innerHTML;
+                
+                submitBtn.innerHTML = '<div class="loading"></div> Submitting...';
+                submitBtn.disabled = true;
+
+                try {
+                    const formData = new FormData(form);
+                    
+                    const task = {
+                        model: formData.get('model'),
+                        type: formData.get('type'),
+                        priority: parseInt(formData.get('priority'), 10),
+                        payload: {
+                            prompt: formData.get('prompt')
+                        }
+                    };
+
+                    const response = await fetch('/api/tasks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(task)
+                    });
+
+                    if (response.ok) {
+                        form.reset();
+                        document.getElementById('priority').selectedIndex = 2; // Reset to Normal (5)
+                        this.showToast('Task submitted successfully!', 'success');
+                    } else {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error('Failed to submit task:', error);
+                    this.showToast('Failed to submit task. Please try again.', 'error');
+                } finally {
+                    submitBtn.innerHTML = originalContent;
+                    submitBtn.disabled = false;
+                }
+            }
+
+            showToast(message, type = 'success') {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.className = `toast ${type}`;
+                toast.classList.add('show');
+
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }
+        }
+
+        // Global functions for inline event handlers
+        async function updatePriority(taskId, priority) {
+            try {
+                const response = await fetch(`/api/tasks/${taskId}/priority`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ priority: parseInt(priority, 10) })
+                });
+
+                if (response.ok) {
+                    dashboard.showToast('Priority updated successfully!', 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Failed to update priority:', error);
+                dashboard.showToast('Failed to update priority. Please try again.', 'error');
+            }
+        }
+
+        async function cancelTask(taskId) {
+            if (!confirm('Are you sure you want to cancel this task?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/tasks/${taskId}/cancel`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    dashboard.showToast('Task cancelled successfully!', 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Failed to cancel task:', error);
+                dashboard.showToast('Failed to cancel task. Please try again.', 'error');
+            }
+        }
+
+        // Initialize dashboard
+        const dashboard = new OllamaQueueDashboard();
+    </script>
+</body>
+</html>

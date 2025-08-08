@@ -1,12 +1,14 @@
 # Ollama Queue
 
-基于Go语言构建的高性能Ollama模型任务队列管理系统。Ollama Queue 提供了高效的任务调度、优先级管理、持久化存储和重试机制，专为AI模型操作设计。
+基于Go语言构建的高性能 **客户端-服务器任务队列管理系统**。Ollama Queue 提供了高效的任务调度、优先级管理、持久化存储和重试机制，支持库集成和独立服务器两种使用方式。
 
 **🌟 [English](README.md)** | **📖 [中文文档](README_zh.md)**
 
 ## 特性
 
 - 🚀 **高性能**: 使用Go语言构建，具有最佳性能和并发能力
+- 🏗️ **客户端-服务器架构**: 独立服务器，支持HTTP API和WebSocket
+- 🌐 **实时Web界面**: 基于浏览器的队列监控和管理仪表板
 - 📋 **优先级调度**: 四级优先级系统，同级别内采用FIFO排序
 - 💾 **持久化存储**: 基于BadgerDB的存储系统，支持崩溃恢复
 - 🔄 **重试机制**: 可配置的重试机制，支持指数退避算法
@@ -15,6 +17,7 @@
 - 🖥️ **CLI接口**: 命令行工具进行任务管理
 - 📚 **库集成**: 可作为Go库在应用程序中使用
 - 🌊 **流式支持**: 聊天和生成任务的实时流式输出
+- 🔌 **HTTP客户端**: 内置客户端库，便于集成
 
 ## 快速开始
 
@@ -24,65 +27,26 @@
 go get github.com/liliang-cn/ollama-queue
 ```
 
-### 作为库的基本使用
+### 服务器模式 (推荐)
 
-```go
-package main
+启动带有Web界面的服务器：
 
-import (
-    "context"
-    "fmt"
-    "log"
+```bash
+# 启动服务器 (默认端口 8080)
+ollama-queue serve
 
-    "github.com/liliang-cn/ollama-queue/internal/models"
-    "github.com/liliang-cn/ollama-queue/pkg/queue"
-)
+# 在自定义端口启动服务器
+ollama-queue serve --port 9090
 
-func main() {
-    // 创建队列管理器
-    qm, err := queue.NewQueueManagerWithOptions(
-        queue.WithOllamaHost("http://localhost:11434"),
-        queue.WithMaxWorkers(4),
-        queue.WithStoragePath("./data"),
-    )
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer qm.Close()
-
-    // 启动队列管理器
-    ctx := context.Background()
-    if err := qm.Start(ctx); err != nil {
-        log.Fatal(err)
-    }
-
-    // 创建并提交聊天任务
-    task := queue.NewChatTask("llama2", []models.ChatMessage{
-        {Role: "user", Content: "你好，你是谁？"},
-    }, queue.WithTaskPriority(models.PriorityHigh))
-
-    taskID, err := qm.SubmitTask(task)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    fmt.Printf("任务已提交，ID: %s\n", taskID)
-
-    // 使用回调等待完成
-    _, err = qm.SubmitTaskWithCallback(task, func(result *models.TaskResult) {
-        if result.Success {
-            fmt.Printf("任务完成成功: %v\n", result.Data)
-        } else {
-            fmt.Printf("任务失败: %s\n", result.Error)
-        }
-    })
-    if err != nil {
-        log.Fatal(err)
-    }
-}
+# 使用自定义数据目录启动服务器
+ollama-queue serve --data-dir ./my-queue-data
 ```
 
-### CLI使用
+然后在浏览器中打开 http://localhost:8080 访问Web界面。
+
+### 客户端模式
+
+使用CLI客户端与运行中的服务器交互：
 
 ```bash
 # 提交聊天任务
@@ -102,6 +66,102 @@ ollama-queue cancel <task-id>
 
 # 更新任务优先级
 ollama-queue priority <task-id> high
+```
+
+### HTTP客户端集成
+
+在应用程序中使用内置的HTTP客户端：
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+
+    "github.com/liliang-cn/ollama-queue/pkg/client"
+    "github.com/liliang-cn/ollama-queue/internal/models"
+    "github.com/liliang-cn/ollama-queue/pkg/queue"
+)
+
+func main() {
+    // 连接到运行中的服务器
+    cli := client.New("localhost:8080")
+
+    // 创建并提交聊天任务
+    task := queue.NewChatTask("llama2", []models.ChatMessage{
+        {Role: "user", Content: "你好，你是谁？"},
+    }, queue.WithTaskPriority(models.PriorityHigh))
+
+    taskID, err := cli.SubmitTask(task)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("任务已提交，ID: %s\n", taskID)
+
+    // 获取任务状态
+    taskInfo, err := cli.GetTask(taskID)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("任务状态: %s\n", taskInfo.Status)
+}
+```
+
+## Web界面
+
+服务器提供了一个实时Web界面，可通过 `http://localhost:8080` 访问：
+
+### 功能特性
+- **任务列表**: 查看所有任务及实时状态更新
+- **任务提交**: 直接从Web界面提交新任务
+- **优先级管理**: 实时调整任务优先级
+- **任务取消**: 取消正在运行或等待中的任务
+- **队列统计**: 监控队列性能和状态
+
+### API端点
+
+| 方法 | 端点 | 描述 |
+|------|------|------|
+| `GET` | `/` | Web界面 |
+| `GET` | `/ws` | WebSocket实时更新 |
+| `POST` | `/api/tasks` | 提交新任务 |
+| `GET` | `/api/tasks` | 列出所有任务 |
+| `GET` | `/api/tasks/:id` | 获取特定任务 |
+| `POST` | `/api/tasks/:id/cancel` | 取消任务 |
+| `POST` | `/api/tasks/:id/priority` | 更新任务优先级 |
+| `GET` | `/api/status` | 获取队列统计 |
+
+## 客户端-服务器架构
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Web浏览器     │    │   CLI客户端     │    │   HTTP客户端    │
+│                 │    │                 │    │   库           │
+└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
+          │ HTTP/WS              │ HTTP                  │ HTTP
+          │                      │                       │
+          └──────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────┴───────────────┐
+                    │    Ollama Queue服务器       │
+                    │                             │
+                    │  ┌─────────┐ ┌─────────────┐│
+                    │  │ Web UI  │ │  HTTP API   ││
+                    │  └─────────┘ └─────────────┘│
+                    │                             │
+                    │  ┌─────────┐ ┌─────────────┐│
+                    │  │优先级   │ │   重试      ││
+                    │  │调度器   │ │  调度器     ││
+                    │  └─────────┘ └─────────────┘│
+                    │                             │
+                    │  ┌─────────┐ ┌─────────────┐│
+                    │  │ 存储    │ │  执行器     ││
+                    │  │(BadgerDB)│ │  (Ollama)   ││
+                    │  └─────────┘ └─────────────┘│
+                    └─────────────────────────────┘
 ```
 
 ## 任务类型
@@ -194,22 +254,82 @@ export RETRY_MAX_RETRIES=3
 export LOG_LEVEL="info"
 ```
 
-## 库集成
+## 库集成 (嵌入模式)
 
-### 在Web应用中使用
+您也可以将队列管理器直接嵌入到应用程序中：
 
-将Ollama Queue集成到您的Web服务中，实现高效的AI任务处理：
+### 基本库使用
 
 ```go
 package main
 
 import (
     "context"
+    "fmt"
+    "log"
+
+    "github.com/liliang-cn/ollama-queue/internal/models"
+    "github.com/liliang-cn/ollama-queue/pkg/queue"
+)
+
+func main() {
+    // 创建队列管理器
+    qm, err := queue.NewQueueManagerWithOptions(
+        queue.WithOllamaHost("http://localhost:11434"),
+        queue.WithMaxWorkers(4),
+        queue.WithStoragePath("./data"),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer qm.Close()
+
+    // 启动队列管理器
+    ctx := context.Background()
+    if err := qm.Start(ctx); err != nil {
+        log.Fatal(err)
+    }
+
+    // 创建并提交聊天任务
+    task := queue.NewChatTask("llama2", []models.ChatMessage{
+        {Role: "user", Content: "你好，你是谁？"},
+    }, queue.WithTaskPriority(models.PriorityHigh))
+
+    taskID, err := qm.SubmitTask(task)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("任务已提交，ID: %s\n", taskID)
+
+    // 使用回调等待完成
+    _, err = qm.SubmitTaskWithCallback(task, func(result *models.TaskResult) {
+        if result.Success {
+            fmt.Printf("任务完成成功: %v\n", result.Data)
+        } else {
+            fmt.Printf("任务失败: %s\n", result.Error)
+        }
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+### 在Web应用中使用
+
+将Ollama Queue客户端集成到您的Web服务中：
+
+```go
+package main
+
+import (
     "encoding/json"
     "net/http"
     "log"
 
     "github.com/gin-gonic/gin"
+    "github.com/liliang-cn/ollama-queue/pkg/client"
     "github.com/liliang-cn/ollama-queue/internal/models"
     "github.com/liliang-cn/ollama-queue/pkg/queue"
 )
@@ -219,32 +339,17 @@ type ChatRequest struct {
     Model   string `json:"model"`
 }
 
-var queueManager *queue.QueueManager
+var queueClient *client.Client
 
 func main() {
-    // 初始化队列管理器
-    var err error
-    queueManager, err = queue.NewQueueManagerWithOptions(
-        queue.WithMaxWorkers(8),
-        queue.WithStoragePath("./web_queue_data"),
-    )
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer queueManager.Close()
-
-    // 启动队列管理器
-    ctx := context.Background()
-    if err := queueManager.Start(ctx); err != nil {
-        log.Fatal(err)
-    }
+    // 连接到队列服务器
+    queueClient = client.New("localhost:8080")
 
     r := gin.Default()
     r.POST("/chat", handleChat)
     r.GET("/task/:id", handleTaskStatus)
-    r.GET("/queue/stats", handleQueueStats)
     
-    r.Run(":8080")
+    r.Run(":3000")
 }
 
 func handleChat(c *gin.Context) {
@@ -258,7 +363,7 @@ func handleChat(c *gin.Context) {
         {Role: "user", Content: req.Message},
     })
 
-    taskID, err := queueManager.SubmitTask(task)
+    taskID, err := queueClient.SubmitTask(task)
     if err != nil {
         c.JSON(500, gin.H{"error": err.Error()})
         return
@@ -273,7 +378,7 @@ func handleChat(c *gin.Context) {
 func handleTaskStatus(c *gin.Context) {
     taskID := c.Param("id")
     
-    task, err := queueManager.GetTask(taskID)
+    task, err := queueClient.GetTask(taskID)
     if err != nil {
         c.JSON(404, gin.H{"error": "任务未找到"})
         return
@@ -520,7 +625,8 @@ type QueueManagerInterface interface {
 
 | 命令 | 描述 | 示例 |
 |------|------|------|
-| `submit` | 提交新任务 | `ollama-queue submit chat --model llama2 --messages "user:你好"` |
+| `serve` | 启动带Web界面的队列服务器 | `ollama-queue serve --port 8080` |
+| `submit` | 向服务器提交新任务 | `ollama-queue submit chat --model llama2 --messages "user:你好"` |
 | `list` | 列出任务（支持过滤） | `ollama-queue list --status running --limit 10` |
 | `status` | 显示任务状态或队列统计 | `ollama-queue status <task-id>` |
 | `cancel` | 取消一个或多个任务 | `ollama-queue cancel <task-id1> <task-id2>` |
@@ -528,28 +634,18 @@ type QueueManagerInterface interface {
 
 ## 系统架构
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   CLI工具       │    │   Go库          │    │   Web API       │
-│                 │    │                 │    │   (未来)        │
-└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
-          │                      │                      │
-          └──────────────────────┼──────────────────────┘
-                                 │
-                    ┌─────────────┴───────────────┐
-                    │      队列管理器             │
-                    │                             │
-                    │  ┌─────────┐ ┌─────────────┐│
-                    │  │优先级   │ │   重试      ││
-                    │  │调度器   │ │  调度器     ││
-                    │  └─────────┘ └─────────────┘│
-                    │                             │
-                    │  ┌─────────┐ ┌─────────────┐│
-                    │  │ 存储    │ │  执行器     ││
-                    │  │(BadgerDB)│ │  (Ollama)   ││
-                    │  └─────────┘ └─────────────┘│
-                    └─────────────────────────────┘
-```
+系统采用灵活的客户端-服务器架构，支持多种使用模式：
+
+### 服务器模式
+- 独立HTTP服务器，提供REST API
+- 实时WebSocket通信
+- 内置Web监控界面
+- 基于BadgerDB的持久化任务存储
+
+### 客户端集成
+- HTTP客户端库，便于编程访问
+- CLI工具，用于命令行操作
+- 直接库集成，用于嵌入式使用
 
 ## 性能特点
 

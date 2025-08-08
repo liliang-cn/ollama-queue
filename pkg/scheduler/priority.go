@@ -94,17 +94,25 @@ func (ps *PriorityScheduler) GetNextTask() *models.Task {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	
-	// Check queues in priority order (highest first)
-	priorities := []models.Priority{
-		models.PriorityCritical,
-		models.PriorityHigh,
-		models.PriorityNormal,
-		models.PriorityLow,
+	// First check all queues by priority (highest to lowest)
+	// Collect all priorities and sort them in descending order
+	var allPriorities []models.Priority
+	for priority := range ps.queues {
+		allPriorities = append(allPriorities, priority)
 	}
 	
-	for _, priority := range priorities {
-		queue, exists := ps.queues[priority]
-		if !exists {
+	// Sort priorities in descending order (highest first)
+	for i := 0; i < len(allPriorities); i++ {
+		for j := i + 1; j < len(allPriorities); j++ {
+			if allPriorities[i] < allPriorities[j] {
+				allPriorities[i], allPriorities[j] = allPriorities[j], allPriorities[i]
+			}
+		}
+	}
+	
+	for _, priority := range allPriorities {
+		queue := ps.queues[priority]
+		if queue == nil {
 			continue
 		}
 		

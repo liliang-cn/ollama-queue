@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/client"
 	"github.com/liliang-cn/ollama-queue/pkg/config"
-	"github.com/liliang-cn/ollama-queue/pkg/queue"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -56,27 +56,13 @@ func init() {
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	// Load configuration
+	// Create a new client
 	configLoader := config.NewConfigLoader()
 	cfg, err := configLoader.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-
-	// Override with CLI flags
-	if ollamaHost != "" {
-		cfg.OllamaHost = ollamaHost
-	}
-	if dataDir != "" {
-		cfg.StoragePath = dataDir
-	}
-
-	// Create queue manager
-	qm, err := queue.NewQueueManager(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create queue manager: %w", err)
-	}
-	defer qm.Close()
+	cli := client.New(cfg.ListenAddr)
 
 	// Build filter
 	filter := models.TaskFilter{
@@ -87,36 +73,14 @@ func runList(cmd *cobra.Command, args []string) error {
 	// Parse status filter
 	if len(listStatus) > 0 {
 		for _, status := range listStatus {
-			switch strings.ToLower(status) {
-			case "pending":
-				filter.Status = append(filter.Status, models.StatusPending)
-			case "running":
-				filter.Status = append(filter.Status, models.StatusRunning)
-			case "completed":
-				filter.Status = append(filter.Status, models.StatusCompleted)
-			case "failed":
-				filter.Status = append(filter.Status, models.StatusFailed)
-			case "cancelled":
-				filter.Status = append(filter.Status, models.StatusCancelled)
-			default:
-				return fmt.Errorf("invalid status: %s", status)
-			}
+			filter.Status = append(filter.Status, models.TaskStatus(status))
 		}
 	}
 
 	// Parse type filter
 	if len(listType) > 0 {
 		for _, taskType := range listType {
-			switch strings.ToLower(taskType) {
-			case "chat":
-				filter.Type = append(filter.Type, models.TaskTypeChat)
-			case "generate":
-				filter.Type = append(filter.Type, models.TaskTypeGenerate)
-			case "embed":
-				filter.Type = append(filter.Type, models.TaskTypeEmbed)
-			default:
-				return fmt.Errorf("invalid task type: %s", taskType)
-			}
+			filter.Type = append(filter.Type, models.TaskType(taskType))
 		}
 	}
 
@@ -132,20 +96,23 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	// List tasks
-	tasks, err := qm.ListTasks(filter)
+	tasks, err := cli.ListTasks(filter)
 	if err != nil {
 		return fmt.Errorf("failed to list tasks: %w", err)
 	}
 
+	// Filter tasks
+	filteredTasks := filterTasks(tasks, listStatus, listType, listPriority)
+
 	// Output results
 	if listOutput == "json" {
-		output, err := json.MarshalIndent(tasks, "", "  ")
+		output, err := json.MarshalIndent(filteredTasks, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal tasks: %w", err)
 		}
 		fmt.Println(string(output))
 	} else {
-		printTasksTable(tasks)
+		printTasksTable(filteredTasks)
 	}
 
 	return nil
@@ -160,25 +127,33 @@ func printTasksTable(tasks []*models.Task) {
 	// Print header
 	fmt.Printf("%-36s %-10s %-8s %-10s %-15s %-20s %-20s\n", 
 		"ID", "TYPE", "PRIORITY", "STATUS", "MODEL", "CREATED", "COMPLETED")
-	fmt.Println(strings.Repeat("-", 120))
+	fmt.Println(strings.Repeat("-", 136))
 
 	// Print tasks
 	for _, task := range tasks {
 		id := task.ID
-		if len(id) > 8 {
-			id = id[:8] + "..."
-		}
 
 		priority := fmt.Sprintf("%d", task.Priority)
 		switch task.Priority {
 		case models.PriorityLow:
 			priority = "low"
 		case models.PriorityNormal:
-			priority = "normal"
+			priority = "normal" 
 		case models.PriorityHigh:
 			priority = "high"
 		case models.PriorityCritical:
 			priority = "critical"
+		default:
+			// 处理未知优先级值，可能是旧数据或直接数字输入
+			if task.Priority == 0 {
+				priority = "low"
+			} else if task.Priority == 1 {
+				priority = "normal"
+			} else if task.Priority == 2 {
+				priority = "high"
+			} else if task.Priority == 3 {
+				priority = "critical"
+			}
 		}
 
 		created := task.CreatedAt.Format("2006-01-02 15:04:05")
@@ -197,4 +172,57 @@ func printTasksTable(tasks []*models.Task) {
 	}
 
 	fmt.Printf("\nTotal: %d tasks\n", len(tasks))
+}
+
+func filterTasks(tasks []*models.Task, statuses []string, types []string, priorities []string) []*models.Task {
+	var filtered []*models.Task
+
+	for _, task := range tasks {
+		// Status filter
+		if len(statuses) > 0 {
+			found := false
+			for _, status := range statuses {
+				if strings.ToLower(string(task.Status)) == strings.ToLower(status) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		// Type filter
+		if len(types) > 0 {
+			found := false
+			for _, taskType := range types {
+				if strings.ToLower(string(task.Type)) == strings.ToLower(taskType) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		// Priority filter
+		if len(priorities) > 0 {
+			found := false
+			for _, priority := range priorities {
+				p, err := parsePriority(priority)
+				if err == nil && task.Priority == p {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		filtered = append(filtered, task)
+	}
+
+	return filtered
 }

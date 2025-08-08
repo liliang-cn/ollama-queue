@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/spf13/cobra"
+	"github.com/liliang-cn/ollama-queue/pkg/client"
 	"github.com/liliang-cn/ollama-queue/pkg/config"
-	"github.com/liliang-cn/ollama-queue/pkg/queue"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -36,39 +36,25 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	// Load configuration
+	// Create a new client
 	configLoader := config.NewConfigLoader()
 	cfg, err := configLoader.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-
-	// Override with CLI flags
-	if ollamaHost != "" {
-		cfg.OllamaHost = ollamaHost
-	}
-	if dataDir != "" {
-		cfg.StoragePath = dataDir
-	}
-
-	// Create queue manager
-	qm, err := queue.NewQueueManager(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create queue manager: %w", err)
-	}
-	defer qm.Close()
+	cli := client.New(cfg.ListenAddr)
 
 	if len(args) == 0 {
 		// Show queue statistics
-		return showQueueStats(qm)
+		return showQueueStats(cli)
 	} else {
 		// Show specific task status
-		return showTaskStatus(qm, args[0])
+		return showTaskStatus(cli, args[0])
 	}
 }
 
-func showQueueStats(qm *queue.QueueManager) error {
-	stats, err := qm.GetQueueStats()
+func showQueueStats(cli *client.Client) error {
+	stats, err := cli.GetQueueStats()
 	if err != nil {
 		return fmt.Errorf("failed to get queue stats: %w", err)
 	}
@@ -115,8 +101,8 @@ func showQueueStats(qm *queue.QueueManager) error {
 	return nil
 }
 
-func showTaskStatus(qm *queue.QueueManager, taskID string) error {
-	task, err := qm.GetTask(taskID)
+func showTaskStatus(cli *client.Client, taskID string) error {
+	task, err := cli.GetTask(taskID)
 	if err != nil {
 		return fmt.Errorf("failed to get task: %w", err)
 	}

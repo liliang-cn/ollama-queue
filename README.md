@@ -1,12 +1,14 @@
 # Ollama Queue
 
-A high-performance task queue management system for Ollama models, built in Go. Ollama Queue provides efficient task scheduling, priority management, persistence, and retry mechanisms for AI model operations.
+A high-performance **Client-Server task queue management system** for Ollama models, built in Go. Ollama Queue provides efficient task scheduling, priority management, persistence, and retry mechanisms for AI model operations with both library and standalone server usage.
 
 **📖 [中文文档](README_zh.md)** | **🌟 [English](README.md)**
 
 ## Features
 
 - 🚀 **High Performance**: Built with Go for optimal performance and concurrency
+- 🏗️ **Client-Server Architecture**: Standalone server with HTTP API and WebSocket support
+- 🌐 **Real-time Web UI**: Browser-based dashboard for queue monitoring and management
 - 📋 **Priority Scheduling**: Four priority levels with FIFO ordering within each level
 - 💾 **Persistent Storage**: BadgerDB-based storage with crash recovery
 - 🔄 **Retry Mechanism**: Configurable retry with exponential backoff
@@ -15,6 +17,7 @@ A high-performance task queue management system for Ollama models, built in Go. 
 - 🖥️ **CLI Interface**: Command-line tool for task management
 - 📚 **Library Usage**: Use as a Go library in your applications
 - 🌊 **Streaming Support**: Real-time streaming for chat and generation tasks
+- 🔌 **HTTP Client**: Built-in client library for easy integration
 
 ## Quick Start
 
@@ -24,65 +27,26 @@ A high-performance task queue management system for Ollama models, built in Go. 
 go get github.com/liliang-cn/ollama-queue
 ```
 
-### Basic Usage as Library
+### Server Mode (Recommended)
 
-```go
-package main
+Start the server with web interface:
 
-import (
-    "context"
-    "fmt"
-    "log"
+```bash
+# Start server (default port 8080)
+ollama-queue serve
 
-    "github.com/liliang-cn/ollama-queue/internal/models"
-    "github.com/liliang-cn/ollama-queue/pkg/queue"
-)
+# Start server on custom port
+ollama-queue serve --port 9090
 
-func main() {
-    // Create queue manager with default configuration
-    qm, err := queue.NewQueueManagerWithOptions(
-        queue.WithOllamaHost("http://localhost:11434"),
-        queue.WithMaxWorkers(4),
-        queue.WithStoragePath("./data"),
-    )
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer qm.Close()
-
-    // Start the queue manager
-    ctx := context.Background()
-    if err := qm.Start(ctx); err != nil {
-        log.Fatal(err)
-    }
-
-    // Create and submit a chat task
-    task := queue.NewChatTask("llama2", []models.ChatMessage{
-        {Role: "user", Content: "Hello, how are you?"},
-    }, queue.WithTaskPriority(models.PriorityHigh))
-
-    taskID, err := qm.SubmitTask(task)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    fmt.Printf("Task submitted with ID: %s\n", taskID)
-
-    // Wait for completion using callback
-    _, err = qm.SubmitTaskWithCallback(task, func(result *models.TaskResult) {
-        if result.Success {
-            fmt.Printf("Task completed successfully: %v\n", result.Data)
-        } else {
-            fmt.Printf("Task failed: %s\n", result.Error)
-        }
-    })
-    if err != nil {
-        log.Fatal(err)
-    }
-}
+# Start server with custom data directory
+ollama-queue serve --data-dir ./my-queue-data
 ```
 
-### CLI Usage
+Then open http://localhost:8080 in your browser to access the web interface.
+
+### Client Mode
+
+Use the CLI client to interact with the running server:
 
 ```bash
 # Submit a chat task
@@ -102,6 +66,101 @@ ollama-queue cancel <task-id>
 
 # Update task priority
 ollama-queue priority <task-id> high
+```
+
+### HTTP Client Integration
+
+Use the built-in HTTP client in your applications:
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+
+    "github.com/liliang-cn/ollama-queue/pkg/client"
+    "github.com/liliang-cn/ollama-queue/internal/models"
+    "github.com/liliang-cn/ollama-queue/pkg/queue"
+)
+
+func main() {
+    // Connect to running server
+    cli := client.New("localhost:8080")
+
+    // Create and submit a chat task
+    task := queue.NewChatTask("llama2", []models.ChatMessage{
+        {Role: "user", Content: "Hello, how are you?"},
+    }, queue.WithTaskPriority(models.PriorityHigh))
+
+    taskID, err := cli.SubmitTask(task)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Task submitted with ID: %s\n", taskID)
+
+    // Get task status
+    taskInfo, err := cli.GetTask(taskID)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Task status: %s\n", taskInfo.Status)
+}
+
+## Web Interface
+
+The server provides a real-time web interface accessible at `http://localhost:8080`:
+
+### Features
+- **Task List**: View all tasks with real-time status updates
+- **Task Submission**: Submit new tasks directly from the web interface
+- **Priority Management**: Change task priorities on-the-fly
+- **Task Cancellation**: Cancel running or pending tasks
+- **Queue Statistics**: Monitor queue performance and status
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | Web interface |
+| `GET` | `/ws` | WebSocket for real-time updates |
+| `POST` | `/api/tasks` | Submit a new task |
+| `GET` | `/api/tasks` | List all tasks |
+| `GET` | `/api/tasks/:id` | Get specific task |
+| `POST` | `/api/tasks/:id/cancel` | Cancel a task |
+| `POST` | `/api/tasks/:id/priority` | Update task priority |
+| `GET` | `/api/status` | Get queue statistics |
+
+## Client-Server Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Web Browser   │    │   CLI Client    │    │   HTTP Client   │
+│                 │    │                 │    │   Library       │
+└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
+          │ HTTP/WS              │ HTTP                  │ HTTP
+          │                      │                       │
+          └──────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────┴───────────────┐
+                    │    Ollama Queue Server      │
+                    │                             │
+                    │  ┌─────────┐ ┌─────────────┐│
+                    │  │ Web UI  │ │  HTTP API   ││
+                    │  └─────────┘ └─────────────┘│
+                    │                             │
+                    │  ┌─────────┐ ┌─────────────┐│
+                    │  │Priority │ │   Retry     ││
+                    │  │Scheduler│ │  Scheduler  ││
+                    │  └─────────┘ └─────────────┘│
+                    │                             │
+                    │  ┌─────────┐ ┌─────────────┐│
+                    │  │ Storage │ │  Executor   ││
+                    │  │(BadgerDB)│ │  (Ollama)   ││
+                    │  └─────────┘ └─────────────┘│
+                    └─────────────────────────────┘
 ```
 
 ## Task Types
@@ -194,22 +253,82 @@ export RETRY_MAX_RETRIES=3
 export LOG_LEVEL="info"
 ```
 
-## Library Integration
+## Library Integration (Embedded Mode)
 
-### Use in Web Applications
+You can also embed the queue manager directly in your applications:
 
-Integrate Ollama Queue into your web services for efficient AI task processing:
+### Basic Library Usage
 
 ```go
 package main
 
 import (
     "context"
+    "fmt"
+    "log"
+
+    "github.com/liliang-cn/ollama-queue/internal/models"
+    "github.com/liliang-cn/ollama-queue/pkg/queue"
+)
+
+func main() {
+    // Create queue manager with default configuration
+    qm, err := queue.NewQueueManagerWithOptions(
+        queue.WithOllamaHost("http://localhost:11434"),
+        queue.WithMaxWorkers(4),
+        queue.WithStoragePath("./data"),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer qm.Close()
+
+    // Start the queue manager
+    ctx := context.Background()
+    if err := qm.Start(ctx); err != nil {
+        log.Fatal(err)
+    }
+
+    // Create and submit a chat task
+    task := queue.NewChatTask("llama2", []models.ChatMessage{
+        {Role: "user", Content: "Hello, how are you?"},
+    }, queue.WithTaskPriority(models.PriorityHigh))
+
+    taskID, err := qm.SubmitTask(task)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Task submitted with ID: %s\n", taskID)
+
+    // Wait for completion using callback
+    _, err = qm.SubmitTaskWithCallback(task, func(result *models.TaskResult) {
+        if result.Success {
+            fmt.Printf("Task completed successfully: %v\n", result.Data)
+        } else {
+            fmt.Printf("Task failed: %s\n", result.Error)
+        }
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+### Use in Web Applications
+
+Integrate Ollama Queue client into your web services:
+
+```go
+package main
+
+import (
     "encoding/json"
     "net/http"
     "log"
 
     "github.com/gin-gonic/gin"
+    "github.com/liliang-cn/ollama-queue/pkg/client"
     "github.com/liliang-cn/ollama-queue/internal/models"
     "github.com/liliang-cn/ollama-queue/pkg/queue"
 )
@@ -219,32 +338,17 @@ type ChatRequest struct {
     Model   string `json:"model"`
 }
 
-var queueManager *queue.QueueManager
+var queueClient *client.Client
 
 func main() {
-    // Initialize queue manager
-    var err error
-    queueManager, err = queue.NewQueueManagerWithOptions(
-        queue.WithMaxWorkers(8),
-        queue.WithStoragePath("./web_queue_data"),
-    )
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer queueManager.Close()
-
-    // Start queue manager
-    ctx := context.Background()
-    if err := queueManager.Start(ctx); err != nil {
-        log.Fatal(err)
-    }
+    // Connect to queue server
+    queueClient = client.New("localhost:8080")
 
     r := gin.Default()
     r.POST("/chat", handleChat)
     r.GET("/task/:id", handleTaskStatus)
-    r.GET("/queue/stats", handleQueueStats)
     
-    r.Run(":8080")
+    r.Run(":3000")
 }
 
 func handleChat(c *gin.Context) {
@@ -258,7 +362,7 @@ func handleChat(c *gin.Context) {
         {Role: "user", Content: req.Message},
     })
 
-    taskID, err := queueManager.SubmitTask(task)
+    taskID, err := queueClient.SubmitTask(task)
     if err != nil {
         c.JSON(500, gin.H{"error": err.Error()})
         return
@@ -273,7 +377,7 @@ func handleChat(c *gin.Context) {
 func handleTaskStatus(c *gin.Context) {
     taskID := c.Param("id")
     
-    task, err := queueManager.GetTask(taskID)
+    task, err := queueClient.GetTask(taskID)
     if err != nil {
         c.JSON(404, gin.H{"error": "Task not found"})
         return
@@ -286,6 +390,7 @@ func handleTaskStatus(c *gin.Context) {
         "error": task.Error,
     })
 }
+```
 ```
 
 ### Async Task Processing
@@ -520,7 +625,8 @@ type QueueManagerInterface interface {
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `submit` | Submit a new task | `ollama-queue submit chat --model llama2 --messages "user:Hello"` |
+| `serve` | Start the queue server with web interface | `ollama-queue serve --port 8080` |
+| `submit` | Submit a new task to the server | `ollama-queue submit chat --model llama2 --messages "user:Hello"` |
 | `list` | List tasks with optional filtering | `ollama-queue list --status running --limit 10` |
 | `status` | Show task status or queue statistics | `ollama-queue status <task-id>` |
 | `cancel` | Cancel one or more tasks | `ollama-queue cancel <task-id1> <task-id2>` |
@@ -528,28 +634,18 @@ type QueueManagerInterface interface {
 
 ## Architecture
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   CLI Tool      │    │   Go Library    │    │   Web API       │
-│                 │    │                 │    │   (Future)      │
-└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
-          │                      │                      │
-          └──────────────────────┼──────────────────────┘
-                                 │
-                    ┌─────────────┴───────────────┐
-                    │      Queue Manager          │
-                    │                             │
-                    │  ┌─────────┐ ┌─────────────┐│
-                    │  │Priority │ │   Retry     ││
-                    │  │Scheduler│ │  Scheduler  ││
-                    │  └─────────┘ └─────────────┘│
-                    │                             │
-                    │  ┌─────────┐ ┌─────────────┐│
-                    │  │ Storage │ │  Executor   ││
-                    │  │(BadgerDB)│ │  (Ollama)   ││
-                    │  └─────────┘ └─────────────┘│
-                    └─────────────────────────────┘
-```
+The system is designed with a flexible Client-Server architecture that supports multiple usage patterns:
+
+### Server Mode
+- Standalone HTTP server with REST API
+- Real-time WebSocket communication
+- Built-in web interface for monitoring
+- Persistent task storage with BadgerDB
+
+### Client Integration
+- HTTP client library for programmatic access
+- CLI tool for command-line operations
+- Direct library integration for embedded usage
 
 ## Performance
 

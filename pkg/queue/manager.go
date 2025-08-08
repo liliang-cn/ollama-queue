@@ -591,14 +591,49 @@ func (qm *QueueManager) loadPendingTasks() error {
 	if err != nil {
 		return fmt.Errorf("failed to load pending tasks: %w", err)
 	}
-	
-	for _, task := range pendingTasks {
-		if err := qm.scheduler.AddTask(task); err != nil {
-			log.Printf("Failed to add pending task %s to scheduler: %v", task.ID, err)
+
+	runningTasks, err := qm.storage.GetTasksByStatus(models.StatusRunning)
+	if err != nil {
+		return fmt.Errorf("failed to load running tasks: %w", err)
+	}
+
+	allTasks := append(pendingTasks, runningTasks...)
+
+	for _, task := range allTasks {
+		if task.Status == models.StatusRunning {
+			// 重新加载任务以获取最新状态
+			latestTask, err := qm.storage.LoadTask(task.ID)
+			if err != nil {
+				log.Printf("Failed to load task %s: %v", task.ID, err)
+				continue
+			}
+			
+			// 如果任务已经完成、失败或被取消，跳过不重新执行
+			if latestTask.Status == models.StatusCompleted || 
+			   latestTask.Status == models.StatusFailed || 
+			   latestTask.Status == models.StatusCancelled {
+				log.Printf("Task %s already finished with status %s, skipping recovery", latestTask.ID, latestTask.Status)
+				continue
+			}
+			
+			// 只有真正被中断的任务才重置为pending
+			latestTask.Status = models.StatusPending
+			if err := qm.storage.SaveTask(latestTask); err != nil {
+				log.Printf("Failed to reset running task %s to pending: %v", latestTask.ID, err)
+				continue
+			}
+			task = latestTask // 更新循环中的task变量
+		}
+		
+		// 只添加pending状态的任务到调度器
+		if task.Status == models.StatusPending {
+			if err := qm.scheduler.AddTask(task); err != nil {
+				log.Printf("Failed to add pending task %s to scheduler: %v", task.ID, err)
+			}
 		}
 	}
-	
-	log.Printf("Loaded %d pending tasks from storage", len(pendingTasks))
+
+	log.Printf("Loaded %d pending tasks from storage", len(allTasks))
 	return nil
 }
 

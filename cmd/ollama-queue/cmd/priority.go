@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/client"
 	"github.com/liliang-cn/ollama-queue/pkg/config"
-	"github.com/liliang-cn/ollama-queue/pkg/queue"
+	"github.com/spf13/cobra"
 )
 
 // priorityCmd represents the priority command
@@ -46,30 +46,16 @@ func runPriority(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid priority: %w", err)
 	}
 
-	// Load configuration
+	// Create a new client
 	configLoader := config.NewConfigLoader()
 	cfg, err := configLoader.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-
-	// Override with CLI flags
-	if ollamaHost != "" {
-		cfg.OllamaHost = ollamaHost
-	}
-	if dataDir != "" {
-		cfg.StoragePath = dataDir
-	}
-
-	// Create queue manager
-	qm, err := queue.NewQueueManager(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create queue manager: %w", err)
-	}
-	defer qm.Close()
+	cli := client.New(cfg.ListenAddr)
 
 	// Update task priority
-	err = qm.UpdateTaskPriority(taskID, priority)
+	err = cli.UpdateTaskPriority(taskID, priority)
 	if err != nil {
 		return fmt.Errorf("failed to update task priority: %w", err)
 	}
