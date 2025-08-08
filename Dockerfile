@@ -43,7 +43,7 @@ RUN mkdir -p /app/data && \
 USER appuser
 
 # Expose default port (if needed for future web interface)
-EXPOSE 8080
+EXPOSE 7125
 
 # Set default environment variables
 ENV OLLAMA_HOST=http://host.docker.internal:11434

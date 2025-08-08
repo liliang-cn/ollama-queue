@@ -32,7 +32,7 @@ go get github.com/liliang-cn/ollama-queue
 Start the server with web interface:
 
 ```bash
-# Start server (default port 8080)
+# Start server (default port 7125)
 ollama-queue serve
 
 # Start server on custom port
@@ -42,7 +42,7 @@ ollama-queue serve --port 9090
 ollama-queue serve --data-dir ./my-queue-data
 ```
 
-Then open http://localhost:8080 in your browser to access the web interface.
+Then open http://localhost:7125 in your browser to access the web interface.
 
 ### Client Mode
 
@@ -76,42 +76,45 @@ Use the built-in HTTP client in your applications:
 package main
 
 import (
-    "fmt"
-    "log"
+	"fmt"
+	"log"
 
-    "github.com/liliang-cn/ollama-queue/pkg/client"
-    "github.com/liliang-cn/ollama-queue/internal/models"
-    "github.com/liliang-cn/ollama-queue/pkg/queue"
+	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/client"
+	"github.com/liliang-cn/ollama-queue/pkg/queue"
 )
 
 func main() {
-    // Connect to running server
-    cli := client.New("localhost:8080")
+	// Connect to running server
+	cli := client.New("localhost:7125")
 
-    // Create and submit a chat task
-    task := queue.NewChatTask("llama2", []models.ChatMessage{
-        {Role: "user", Content: "Hello, how are you?"},
-    }, queue.WithTaskPriority(models.PriorityHigh))
+	// Create and submit a chat task
+	task := queue.NewChatTask("llama2", []models.ChatMessage{
+		{Role: "user", Content: "Hello, how are you?"},
+	}, queue.WithTaskPriority(models.PriorityHigh))
 
-    taskID, err := cli.SubmitTask(task)
-    if err != nil {
-        log.Fatal(err)
-    }
+	taskID, err := cli.SubmitTask(task)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    fmt.Printf("Task submitted with ID: %s\n", taskID)
+	fmt.Printf("Task submitted with ID: %s
+", taskID)
 
-    // Get task status
-    taskInfo, err := cli.GetTask(taskID)
-    if err != nil {
-        log.Fatal(err)
-    }
+	// Get task status
+	taskInfo, err := cli.GetTask(taskID)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    fmt.Printf("Task status: %s\n", taskInfo.Status)
+	fmt.Printf("Task status: %s
+", taskInfo.Status)
 }
+```
 
 ## Web Interface
 
-The server provides a real-time web interface accessible at `http://localhost:8080`:
+The server provides a real-time web interface accessible at `http://localhost:7125`:
 
 ### Features
 - **Task List**: View all tasks with real-time status updates
@@ -186,7 +189,8 @@ For text generation and completion.
 task := queue.NewGenerateTask("codellama", "Write a function to calculate fibonacci numbers",
     queue.WithTaskPriority(models.PriorityNormal),
     queue.WithGenerateSystem("You are a coding assistant"),
-    queue.WithGenerateTemplate("### Response:\n{{ .Response }}"),
+    queue.WithGenerateTemplate("### Response:
+{{ .Response }}"),
 )
 ```
 
@@ -263,57 +267,65 @@ You can also embed the queue manager directly in your applications:
 package main
 
 import (
-    "context"
-    "fmt"
-    "log"
+	"context"
+	"fmt"
+	"log"
+	"time"
 
-    "github.com/liliang-cn/ollama-queue/internal/models"
-    "github.com/liliang-cn/ollama-queue/pkg/queue"
+	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/queue"
 )
 
 func main() {
-    // Create queue manager with default configuration
-    qm, err := queue.NewQueueManagerWithOptions(
-        queue.WithOllamaHost("http://localhost:11434"),
-        queue.WithMaxWorkers(4),
-        queue.WithStoragePath("./data"),
-    )
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer qm.Close()
+	// Create queue manager with default configuration
+	qm, err := queue.NewQueueManagerWithOptions(
+		queue.WithOllamaHost("http://localhost:11434"),
+		queue.WithMaxWorkers(4),
+		queue.WithStoragePath("./data"),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer qm.Close()
 
-    // Start the queue manager
-    ctx := context.Background()
-    if err := qm.Start(ctx); err != nil {
-        log.Fatal(err)
-    }
+	// Start the queue manager
+	ctx := context.Background()
+	if err := qm.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
 
-    // Create and submit a chat task
-    task := queue.NewChatTask("llama2", []models.ChatMessage{
-        {Role: "user", Content: "Hello, how are you?"},
-    }, queue.WithTaskPriority(models.PriorityHigh))
+	// Create and submit a chat task
+	task := queue.NewChatTask("llama2", []models.ChatMessage{
+		{Role: "user", Content: "Hello, how are you?"},
+	}, queue.WithTaskPriority(models.PriorityHigh))
 
-    taskID, err := qm.SubmitTask(task)
-    if err != nil {
-        log.Fatal(err)
-    }
+	taskID, err := qm.SubmitTask(task)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    fmt.Printf("Task submitted with ID: %s\n", taskID)
+	fmt.Printf("Task submitted with ID: %s
+", taskID)
 
-    // Wait for completion using callback
-    _, err = qm.SubmitTaskWithCallback(task, func(result *models.TaskResult) {
-        if result.Success {
-            fmt.Printf("Task completed successfully: %v\n", result.Data)
-        } else {
-            fmt.Printf("Task failed: %s\n", result.Error)
-        }
-    })
-    if err != nil {
-        log.Fatal(err)
-    }
+	// Wait for completion using callback
+	_, err = qm.SubmitTaskWithCallback(task, func(result *models.TaskResult) {
+		if result.Success {
+			fmt.Printf("Task completed successfully: %v
+", result.Data)
+		} else {
+			fmt.Printf("Task failed: %s
+", result.Error)
+		}
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Wait for a while to let the task complete
+	time.Sleep(10 * time.Second)
 }
 ```
+
 
 ### Use in Web Applications
 
@@ -323,74 +335,72 @@ Integrate Ollama Queue client into your web services:
 package main
 
 import (
-    "encoding/json"
-    "net/http"
-    "log"
+	"log"
+	"net/http"
 
-    "github.com/gin-gonic/gin"
-    "github.com/liliang-cn/ollama-queue/pkg/client"
-    "github.com/liliang-cn/ollama-queue/internal/models"
-    "github.com/liliang-cn/ollama-queue/pkg/queue"
+	"github.com/gin-gonic/gin"
+	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/client"
+	"github.com/liliang-cn/ollama-queue/pkg/queue"
 )
 
 type ChatRequest struct {
-    Message string `json:"message"`
-    Model   string `json:"model"`
+	Message string `json:"message"`
+	Model   string `json:"model"`
 }
 
 var queueClient *client.Client
 
 func main() {
-    // Connect to queue server
-    queueClient = client.New("localhost:8080")
+	// Connect to queue server
+	queueClient = client.New("localhost:7125")
 
-    r := gin.Default()
-    r.POST("/chat", handleChat)
-    r.GET("/task/:id", handleTaskStatus)
-    
-    r.Run(":3000")
+	r := gin.Default()
+	r.POST("/chat", handleChat)
+	r.GET("/task/:id", handleTaskStatus)
+
+	r.Run(":3000")
 }
 
 func handleChat(c *gin.Context) {
-    var req ChatRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(400, gin.H{"error": err.Error()})
-        return
-    }
+	var req ChatRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    task := queue.NewChatTask(req.Model, []models.ChatMessage{
-        {Role: "user", Content: req.Message},
-    })
+	task := queue.NewChatTask(req.Model, []models.ChatMessage{
+		{Role: "user", Content: req.Message},
+	})
 
-    taskID, err := queueClient.SubmitTask(task)
-    if err != nil {
-        c.JSON(500, gin.H{"error": err.Error()})
-        return
-    }
+	taskID, err := queueClient.SubmitTask(task)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-    c.JSON(200, gin.H{
-        "task_id": taskID,
-        "status": "submitted",
-    })
+	c.JSON(http.StatusOK, gin.H{
+		"task_id": taskID,
+		"status":  "submitted",
+	})
 }
 
 func handleTaskStatus(c *gin.Context) {
-    taskID := c.Param("id")
-    
-    task, err := queueClient.GetTask(taskID)
-    if err != nil {
-        c.JSON(404, gin.H{"error": "Task not found"})
-        return
-    }
+	taskID := c.Param("id")
 
-    c.JSON(200, gin.H{
-        "task_id": task.ID,
-        "status": task.Status,
-        "result": task.Result,
-        "error": task.Error,
-    })
+	task, err := queueClient.GetTask(taskID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"task_id": task.ID,
+		"status":  task.Status,
+		"result":  task.Result,
+		"error":   task.Error,
+	})
 }
-```
 ```
 
 ### Async Task Processing
@@ -401,91 +411,120 @@ Create a task processor for handling background operations:
 package main
 
 import (
-    "context"
-    "fmt"
-    "sync"
-    "time"
+	"context"
+	"fmt"
+	"sync"
+	"time"
 
-    "github.com/liliang-cn/ollama-queue/internal/models"
-    "github.com/liliang-cn/ollama-queue/pkg/queue"
+	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/queue"
 )
 
 type TaskProcessor struct {
-    qm *queue.QueueManager
-    wg sync.WaitGroup
+	qm *queue.QueueManager
+	wg sync.WaitGroup
 }
 
 func NewTaskProcessor() *TaskProcessor {
-    qm, err := queue.NewQueueManagerWithOptions(
-        queue.WithMaxWorkers(6),
-        queue.WithStoragePath("./processor_data"),
-    )
-    if err != nil {
-        panic(err)
-    }
+	qm, err := queue.NewQueueManagerWithOptions(
+		queue.WithMaxWorkers(6),
+		queue.WithStoragePath("./processor_data"),
+	)
+	if err != nil {
+		panic(err)
+	}
 
-    processor := &TaskProcessor{qm: qm}
-    
-    ctx := context.Background()
-    if err := qm.Start(ctx); err != nil {
-        panic(err)
-    }
+	processor := &TaskProcessor{qm: qm}
 
-    return processor
+	ctx := context.Background()
+	if err := qm.Start(ctx); err != nil {
+		panic(err)
+	}
+
+	return processor
 }
 
 func (tp *TaskProcessor) ProcessChatAsync(message, model string, callback func(string, error)) {
-    task := queue.NewChatTask(model, []models.ChatMessage{
-        {Role: "user", Content: message},
-    })
+	task := queue.NewChatTask(model, []models.ChatMessage{
+		{Role: "user", Content: message},
+	})
 
-    tp.wg.Add(1)
-    _, err := tp.qm.SubmitTaskWithCallback(task, func(result *models.TaskResult) {
-        defer tp.wg.Done()
-        
-        if result.Success {
-            callback(fmt.Sprintf("%v", result.Data), nil)
-        } else {
-            callback("", fmt.Errorf(result.Error))
-        }
-    })
+	tp.wg.Add(1)
+	_, err := tp.qm.SubmitTaskWithCallback(task, func(result *models.TaskResult) {
+		defer tp.wg.Done()
 
-    if err != nil {
-        tp.wg.Done()
-        callback("", err)
-    }
+		if result.Success {
+			callback(fmt.Sprintf("%v", result.Data), nil)
+		} else {
+			callback("", fmt.Errorf(result.Error))
+		}
+	})
+
+	if err != nil {
+		tp.wg.Done()
+		callback("", err)
+	}
 }
 
 func (tp *TaskProcessor) ProcessBatch(messages []string, model string) ([]string, error) {
-    var tasks []*models.Task
-    
-    for _, msg := range messages {
-        task := queue.NewChatTask(model, []models.ChatMessage{
-            {Role: "user", Content: msg},
-        })
-        tasks = append(tasks, task)
-    }
+	var tasks []*models.Task
 
-    results, err := tp.qm.SubmitBatchTasks(tasks)
-    if err != nil {
-        return nil, err
-    }
+	for _, msg := range messages {
+		task := queue.NewChatTask(model, []models.ChatMessage{
+			{Role: "user", Content: msg},
+		})
+		tasks = append(tasks, task)
+	}
 
-    var responses []string
-    for _, result := range results {
-        if result.Success {
-            responses = append(responses, fmt.Sprintf("%v", result.Data))
-        } else {
-            responses = append(responses, fmt.Sprintf("Error: %s", result.Error))
-        }
-    }
+	results, err := tp.qm.SubmitBatchTasks(tasks)
+	if err != nil {
+		return nil, err
+	}
 
-    return responses, nil
+	var responses []string
+	for _, result := range results {
+		if result.Success {
+			responses = append(responses, fmt.Sprintf("%v", result.Data))
+		} else {
+			responses = append(responses, fmt.Sprintf("Error: %s", result.Error))
+		}
+	}
+
+	return responses, nil
 }
 
 func (tp *TaskProcessor) Close() error {
-    tp.wg.Wait()
-    return tp.qm.Close()
+	tp.wg.Wait()
+	return tp.qm.Close()
+}
+
+func main() {
+	processor := NewTaskProcessor()
+	defer processor.Close()
+
+	// Example of async chat processing
+	processor.ProcessChatAsync("Hello, how are you?", "llama2", func(response string, err error) {
+		if err != nil {
+			fmt.Printf("Async chat failed: %v
+", err)
+			return
+		}
+		fmt.Printf("Async chat response: %s
+", response)
+	})
+
+	// Example of batch processing
+	messages := []string{"First message", "Second message"}
+	responses, err := processor.ProcessBatch(messages, "llama2")
+	if err != nil {
+		fmt.Printf("Batch processing failed: %v
+", err)
+	} else {
+		fmt.Println("Batch processing responses:", responses)
+	}
+
+	// Wait for async operations to complete
+	time.Sleep(10 * time.Second)
 }
 ```
 
@@ -535,12 +574,14 @@ if err != nil {
 // Process streaming output
 for chunk := range streamChan {
     if chunk.Error != nil {
-        fmt.Printf("Stream error: %v\n", chunk.Error)
+        fmt.Printf("Stream error: %v
+", chunk.Error)
         break
     }
     
     if chunk.Done {
-        fmt.Println("\nStream completed")
+        fmt.Println("
+Stream completed")
         break
     }
     
@@ -566,7 +607,8 @@ if err != nil {
 
 // Process results
 for i, result := range results {
-    fmt.Printf("Task %d: Success=%v, Data=%v\n", i, result.Success, result.Data)
+    fmt.Printf("Task %d: Success=%v, Data=%v
+", i, result.Success, result.Data)
 }
 ```
 
@@ -582,7 +624,8 @@ if err != nil {
 // Monitor events
 go func() {
     for event := range eventChan {
-        fmt.Printf("Event: %s, Task: %s, Status: %s\n", 
+        fmt.Printf("Event: %s, Task: %s, Status: %s
+", 
             event.Type, event.TaskID, event.Status)
     }
 }()
@@ -625,7 +668,7 @@ type QueueManagerInterface interface {
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `serve` | Start the queue server with web interface | `ollama-queue serve --port 8080` |
+| `serve` | Start the queue server with web interface | `ollama-queue serve --port 7125` |
 | `submit` | Submit a new task to the server | `ollama-queue submit chat --model llama2 --messages "user:Hello"` |
 | `list` | List tasks with optional filtering | `ollama-queue list --status running --limit 10` |
 | `status` | Show task status or queue statistics | `ollama-queue status <task-id>` |

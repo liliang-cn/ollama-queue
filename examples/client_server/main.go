@@ -12,7 +12,7 @@ import (
 
 func main() {
 	// Connect to the queue server (make sure to run `ollama-queue serve` first)
-	cli := client.New("localhost:8080")
+	cli := client.New("localhost:7125")
 
 	// Example 1: Submit a chat task via HTTP client
 	fmt.Println("=== Example 1: Chat Task via HTTP Client ===")
@@ -114,5 +114,5 @@ func main() {
 	// fmt.Printf("Cancelled task %s\n", embedTaskID[:8])
 
 	fmt.Println("\n=== Client-Server Example completed ===")
-	fmt.Println("Check the web interface at http://localhost:8080 to monitor tasks in real-time!")
+	fmt.Println("Check the web interface at http://localhost:7125 to monitor tasks in real-time!")
 }

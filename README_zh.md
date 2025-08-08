@@ -32,7 +32,7 @@ go get github.com/liliang-cn/ollama-queue
 启动带有Web界面的服务器：
 
 ```bash
-# 启动服务器 (默认端口 8080)
+# 启动服务器 (默认端口 7125)
 ollama-queue serve
 
 # 在自定义端口启动服务器
@@ -42,7 +42,7 @@ ollama-queue serve --port 9090
 ollama-queue serve --data-dir ./my-queue-data
 ```
 
-然后在浏览器中打开 http://localhost:8080 访问Web界面。
+然后在浏览器中打开 http://localhost:7125 访问Web界面。
 
 ### 客户端模式
 
@@ -86,7 +86,7 @@ import (
 
 func main() {
     // 连接到运行中的服务器
-    cli := client.New("localhost:8080")
+    cli := client.New("localhost:7125")
 
     // 创建并提交聊天任务
     task := queue.NewChatTask("llama2", []models.ChatMessage{
@@ -112,7 +112,7 @@ func main() {
 
 ## Web界面
 
-服务器提供了一个实时Web界面，可通过 `http://localhost:8080` 访问：
+服务器提供了一个实时Web界面，可通过 `http://localhost:7125` 访问：
 
 ### 功能特性
 - **任务列表**: 查看所有任务及实时状态更新
@@ -343,7 +343,7 @@ var queueClient *client.Client
 
 func main() {
     // 连接到队列服务器
-    queueClient = client.New("localhost:8080")
+    queueClient = client.New("localhost:7125")
 
     r := gin.Default()
     r.POST("/chat", handleChat)
@@ -625,7 +625,7 @@ type QueueManagerInterface interface {
 
 | 命令 | 描述 | 示例 |
 |------|------|------|
-| `serve` | 启动带Web界面的队列服务器 | `ollama-queue serve --port 8080` |
+| `serve` | 启动带Web界面的队列服务器 | `ollama-queue serve --port 7125` |
 | `submit` | 向服务器提交新任务 | `ollama-queue submit chat --model llama2 --messages "user:你好"` |
 | `list` | 列出任务（支持过滤） | `ollama-queue list --status running --limit 10` |
 | `status` | 显示任务状态或队列统计 | `ollama-queue status <task-id>` |

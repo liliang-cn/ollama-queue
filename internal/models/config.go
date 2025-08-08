@@ -61,6 +61,6 @@ func DefaultConfig() *Config {
 		LogLevel: "info",
 		LogFile:  "",
 
-		ListenAddr: "localhost:8080",
+		ListenAddr: "localhost:7125",
 	}
 }

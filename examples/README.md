@@ -132,11 +132,11 @@ The client-server mode provides better scalability and allows multiple clients t
    ```go
    import "github.com/liliang-cn/ollama-queue/pkg/client"
    
-   cli := client.New("localhost:8080")
+   cli := client.New("localhost:7125")
    taskID, err := cli.SubmitTask(task)
    ```
 
-4. **Access web interface**: Visit `http://localhost:8080` for real-time monitoring
+4. **Access web interface**: Visit `http://localhost:7125` for real-time monitoring
 
 ### Embedded Library Mode
 
