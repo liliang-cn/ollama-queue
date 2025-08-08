@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_ORIGINS=*
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  ollama-queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ollama-queue
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - queue_data:/app/data
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - QUEUE_STORAGE_PATH=/app/data
+      - QUEUE_MAX_WORKERS=4
+      - LOG_LEVEL=info
+    command: ["daemon", "--workers", "4"]
+
+  # CLI helper service for running commands
+  ollama-queue-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - ollama-queue
+    volumes:
+      - queue_data:/app/data
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - QUEUE_STORAGE_PATH=/app/data
+    profiles:
+      - cli
+    entrypoint: ["./ollama-queue"]
+
+volumes:
+  ollama_data:
+    driver: local
+  queue_data:
+    driver: local

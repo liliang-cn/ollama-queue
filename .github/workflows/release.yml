@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test before release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.23.x
+
+    - name: Run tests
+      run: go test -race ./...
+
+    - name: Run go vet
+      run: go vet ./...
+
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.23.x
+
+    - name: Get version from tag
+      id: version
+      run: |
+        echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        echo "VERSION_NO_V=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Build multi-platform binaries
+      run: |
+        # Create release directory
+        mkdir -p release
+        
+        # Build for multiple platforms
+        platforms=(
+          "linux/amd64"
+          "linux/arm64"
+          "darwin/amd64"
+          "darwin/arm64"
+          "windows/amd64"
+        )
+        
+        for platform in "${platforms[@]}"; do
+          IFS='/' read -ra ADDR <<< "$platform"
+          GOOS=${ADDR[0]}
+          GOARCH=${ADDR[1]}
+          
+          output_name="ollama-queue-${{ steps.version.outputs.VERSION_NO_V }}-${GOOS}-${GOARCH}"
+          if [ $GOOS = "windows" ]; then
+            output_name+='.exe'
+          fi
+          
+          echo "Building for $GOOS/$GOARCH..."
+          env GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w -X main.version=${{ steps.version.outputs.VERSION }}" -o release/$output_name ./cmd/ollama-queue
+          
+          # Create archive
+          if [ $GOOS = "windows" ]; then
+            zip -j "release/ollama-queue-${{ steps.version.outputs.VERSION_NO_V }}-${GOOS}-${GOARCH}.zip" "release/$output_name"
+          else
+            tar -czf "release/ollama-queue-${{ steps.version.outputs.VERSION_NO_V }}-${GOOS}-${GOARCH}.tar.gz" -C release "$output_name"
+          fi
+        done
+
+    - name: Generate checksums
+      run: |
+        cd release
+        sha256sum *.tar.gz *.zip > checksums.txt
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get the latest tag before current one
+        PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -A1 ${{ steps.version.outputs.VERSION }} | tail -n1)
+        if [ -z "$PREVIOUS_TAG" ]; then
+          PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+        fi
+        
+        # Generate changelog
+        echo "## What's Changed" > CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Get commits since last tag
+        git log --pretty=format:"- %s (@%an)" $PREVIOUS_TAG..${{ steps.version.outputs.VERSION }} >> CHANGELOG.md || git log --pretty=format:"- %s (@%an)" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
+        
+        echo "" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "## Installation" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "### Go Install" >> CHANGELOG.md
+        echo '```bash' >> CHANGELOG.md
+        echo "go install github.com/liliang-cn/ollama-queue/cmd/ollama-queue@${{ steps.version.outputs.VERSION }}" >> CHANGELOG.md
+        echo '```' >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "### Download Binary" >> CHANGELOG.md
+        echo "Download the appropriate binary for your platform from the assets below." >> CHANGELOG.md
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.VERSION }}
+        name: Release ${{ steps.version.outputs.VERSION }}
+        body_path: CHANGELOG.md
+        files: |
+          release/*.tar.gz
+          release/*.zip
+          release/checksums.txt
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.VERSION, 'alpha') || contains(steps.version.outputs.VERSION, 'beta') || contains(steps.version.outputs.VERSION, 'rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
