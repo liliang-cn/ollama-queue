@@ -40,6 +40,7 @@ func NewOllamaExecutor(config *models.Config) (*OllamaExecutor, error) {
 
 // Execute executes a task synchronously
 func (e *OllamaExecutor) Execute(ctx context.Context, task *models.Task) (*models.TaskResult, error) {
+	task.ExecutedOn = "local"
 	// Create a timeout context
 	timeoutCtx, cancel := context.WithTimeout(ctx, e.config.OllamaTimeout)
 	defer cancel()

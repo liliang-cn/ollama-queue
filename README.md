@@ -18,6 +18,7 @@ A high-performance **Client-Server task queue management system** for Ollama mod
 - 📚 **Library Usage**: Use as a Go library in your applications
 - 🌊 **Streaming Support**: Real-time streaming for chat and generation tasks
 - 🔌 **HTTP Client**: Built-in client library for easy integration
+- ☁️ **Remote Scheduling**: Supports offloading tasks to remote Ollama instances or OpenAI-compatible APIs, with improved stability and enhanced Web UI display.
 
 ## Quick Start
 

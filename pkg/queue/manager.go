@@ -62,12 +62,46 @@ func NewQueueManager(config *models.Config) (*QueueManager, error) {
 		return nil, fmt.Errorf("failed to create executor: %w", err)
 	}
 	
+	// Initialize scheduler (with remote scheduling if enabled)
+	var taskScheduler scheduler.Scheduler
+	localScheduler := scheduler.NewPriorityScheduler()
+	
+	if config.RemoteScheduling.Enabled {
+		// Convert config endpoints to scheduler endpoints
+		var endpoints []scheduler.RemoteEndpoint
+		for _, ep := range config.RemoteScheduling.Endpoints {
+			if ep.Enabled {
+				endpoints = append(endpoints, scheduler.RemoteEndpoint{
+					Name:      ep.Name,
+					BaseURL:   ep.BaseURL,
+					APIKey:    ep.APIKey,
+					Priority:  ep.Priority,
+					Available: true,
+				})
+			}
+		}
+		
+		// Create remote scheduler with local fallback
+		remoteConfig := scheduler.RemoteSchedulerConfig{
+			Endpoints:           endpoints,
+			HealthCheckInterval: config.RemoteScheduling.HealthCheckInterval,
+			FallbackScheduler:   localScheduler,
+			MaxLocalQueueSize:   config.RemoteScheduling.MaxLocalQueueSize,
+			LocalFirstPolicy:    config.RemoteScheduling.LocalFirstPolicy,
+			Storage:             badgerStorage,
+		}
+		
+		taskScheduler = scheduler.NewRemoteScheduler(remoteConfig)
+	} else {
+		taskScheduler = localScheduler
+	}
+	
 	ctx, cancel := context.WithCancel(context.Background())
 	
 	qm := &QueueManager{
 		config:           config,
 		storage:          badgerStorage,
-		scheduler:        scheduler.NewPriorityScheduler(),
+		scheduler:        taskScheduler,
 		retryScheduler:   scheduler.NewRetryScheduler(config.RetryConfig),
 		executor:         ollamaExecutor,
 		workerPool:       make(chan struct{}, config.MaxWorkers),

@@ -1,0 +1,75 @@
+# Example configuration for ollama-queue with remote scheduling
+
+# Ollama configuration
+ollama_host: "http://localhost:11434"
+ollama_timeout: "5m"
+
+# Queue configuration
+max_workers: 4
+storage_path: "./data"
+cleanup_interval: "1h"
+max_completed_tasks: 1000
+
+# Scheduling configuration
+scheduling_interval: "1s"
+batch_size: 10
+
+# Retry configuration
+retry_config:
+  max_retries: 3
+  initial_delay: "1s"
+  max_delay: "30s"
+  backoff_factor: 2.0
+
+# Remote scheduling configuration
+remote_scheduling:
+  enabled: true
+  health_check_interval: "30s"
+  fallback_to_local: true
+  
+  # Local-first policy settings
+  max_local_queue_size: 50    # Use remote when local queue exceeds this size
+  local_first_policy: true    # Prefer local execution unless queue is full or high priority
+  
+  endpoints:
+    # OpenAI API
+    - name: "OpenAI"
+      base_url: "https://api.openai.com/v1"
+      api_key: "${OPENAI_API_KEY}"  # Use environment variable
+      priority: 10  # Highest priority
+      enabled: true
+    
+    # DeepSeek API (OpenAI-compatible)
+    - name: "DeepSeek"
+      base_url: "https://api.deepseek.com/v1"
+      api_key: "${DEEPSEEK_API_KEY}"
+      priority: 8
+      enabled: true
+    
+    # Anthropic Claude (via OpenAI-compatible proxy)
+    - name: "Claude"
+      base_url: "https://api.anthropic.com/v1"
+      api_key: "${ANTHROPIC_API_KEY}"
+      priority: 9
+      enabled: false  # Disabled by default
+    
+    # Local AI server (OpenAI-compatible)
+    - name: "LocalAI"
+      base_url: "http://localhost:8080/v1"
+      api_key: ""  # No API key needed for local
+      priority: 5
+      enabled: true
+    
+    # vLLM server (OpenAI-compatible)
+    - name: "vLLM"
+      base_url: "http://vllm-server:8000/v1"
+      api_key: ""
+      priority: 6
+      enabled: false
+
+# Logging configuration
+log_level: "info"
+log_file: ""
+
+# Server configuration
+listen_addr: "localhost:7125"

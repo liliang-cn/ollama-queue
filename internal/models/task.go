@@ -51,6 +51,8 @@ type Task struct {
 	Result      any                   `json:"result,omitempty"`
 	RetryCount  int                   `json:"retry_count"`
 	MaxRetries  int                   `json:"max_retries"`
+	RemoteExecution bool              `json:"remote_execution,omitempty"`
+	ExecutedOn      string            `json:"executed_on,omitempty"`
 	Context     context.Context       `json:"-"`
 	CancelFunc  context.CancelFunc    `json:"-"`
 }

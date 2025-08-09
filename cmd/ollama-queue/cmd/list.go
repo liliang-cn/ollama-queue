@@ -125,9 +125,9 @@ func printTasksTable(tasks []*models.Task) {
 	}
 
 	// Print header
-	fmt.Printf("%-36s %-10s %-8s %-10s %-15s %-20s %-20s\n", 
-		"ID", "TYPE", "PRIORITY", "STATUS", "MODEL", "CREATED", "COMPLETED")
-	fmt.Println(strings.Repeat("-", 136))
+	fmt.Printf("%-36s %-10s %-8s %-10s %-15s %-15s %-20s %-20s\n", 
+		"ID", "TYPE", "PRIORITY", "STATUS", "MODEL", "EXECUTED ON", "CREATED", "COMPLETED")
+	fmt.Println(strings.Repeat("-", 152))
 
 	// Print tasks
 	for _, task := range tasks {
@@ -167,8 +167,13 @@ func printTasksTable(tasks []*models.Task) {
 			model = model[:12] + "..."
 		}
 
-		fmt.Printf("%-36s %-10s %-8s %-10s %-15s %-20s %-20s\n",
-			id, task.Type, priority, task.Status, model, created, completed)
+		executedOn := task.ExecutedOn
+		if executedOn == "" {
+			executedOn = "-"
+		}
+
+		fmt.Printf("%-36s %-10s %-8s %-10s %-15s %-15s %-20s %-20s\n",
+			id, task.Type, priority, task.Status, model, executedOn, created, completed)
 	}
 
 	fmt.Printf("\nTotal: %d tasks\n", len(tasks))

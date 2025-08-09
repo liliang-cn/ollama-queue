@@ -539,6 +539,8 @@
                                 <th>Type</th>
                                 <th>Model</th>
                                 <th>Content</th>
+                                <th>Executed On</th>
+                                <th>Content</th>
                                 <th>Created</th>
                                 <th>Actions</th>
                             </tr>
@@ -766,6 +768,11 @@
                                 <div class="prompt-preview" title="${this.getFullPrompt(task)}">
                                     ${this.getPromptPreview(task)}
                                 </div>
+                            </td>
+                            <td>
+                                <span style="font-family: monospace; background: rgba(102, 126, 234, 0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">
+                                    ${task.executed_on || 'N/A'}
+                                </span>
                             </td>
                             <td title="${createdAt.toLocaleString()}">${timeAgo}</td>
                             <td>
