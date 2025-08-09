@@ -1,0 +1,44 @@
+[
+  {
+    "type": "chat",
+    "model": "qwen3",
+    "priority": 15,
+    "messages": [
+      {
+        "role": "user", 
+        "content": "Hello, how are you?"
+      }
+    ],
+    "system": "You are a helpful assistant",
+    "scheduled_at": "2025-12-25T10:00:00Z"
+  },
+  {
+    "type": "generate",
+    "model": "qwen3",
+    "priority": "high",
+    "prompt": "Write a simple Go function to reverse a string",
+    "system": "You are a coding assistant"
+  },
+  {
+    "type": "embed",
+    "model": "nomic-embed-text",
+    "priority": 1,
+    "input": "This is a sample text for embedding"
+  },
+  {
+    "type": "chat",
+    "model": "qwen3",
+    "priority": 5,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a technical expert"
+      },
+      {
+        "role": "user",
+        "content": "Explain the concept of batch processing"
+      }
+    ],
+    "scheduled_at": "2025-08-10T12:00:00Z"
+  }
+]

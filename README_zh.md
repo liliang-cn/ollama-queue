@@ -51,10 +51,10 @@ ollama-queue serve --data-dir ./my-queue-data
 
 ```bash
 # 提交聊天任务
-ollama-queue submit chat --model llama2 --messages "user:你好，你能帮我什么？" --priority high
+ollama-queue submit chat --model qwen3 --messages "user:你好，你能帮我什么？" --priority high
 
 # 提交生成任务
-ollama-queue submit generate --model codellama --prompt "编写一个Go函数来排序数组"
+ollama-queue submit generate --model qwen3 --prompt "编写一个Go函数来排序数组"
 
 # 列出所有任务
 ollama-queue list
@@ -67,6 +67,9 @@ ollama-queue cancel <task-id>
 
 # 更新任务优先级
 ollama-queue priority <task-id> high
+
+# 从文件提交批量任务
+ollama-queue submit batch --file tasks.json --sync
 ```
 
 ### HTTP客户端集成
@@ -90,7 +93,7 @@ func main() {
     cli := client.New("localhost:7125")
 
     // 创建并提交聊天任务
-    task := queue.NewChatTask("llama2", []models.ChatMessage{
+    task := queue.NewChatTask("qwen3", []models.ChatMessage{
         {Role: "user", Content: "你好，你是谁？"},
     }, queue.WithTaskPriority(models.PriorityHigh))
 
@@ -165,13 +168,80 @@ func main() {
                     └─────────────────────────────┘
 ```
 
+## 批量任务提交
+
+使用JSON批处理文件一次性提交多个任务，实现高效的批量处理。
+
+### 批处理文件格式
+
+创建包含任务规格数组的JSON文件：
+
+```json
+[
+  {
+    "type": "chat",
+    "model": "qwen3",
+    "priority": 15,
+    "messages": [
+      {"role": "user", "content": "你好，你怎么样？"}
+    ],
+    "system": "你是一个有用的助手",
+    "scheduled_at": "2025-12-25T10:00:00Z"
+  },
+  {
+    "type": "generate", 
+    "model": "qwen3",
+    "priority": "high",
+    "prompt": "编写一个Go函数来反转字符串",
+    "system": "你是一个编程助手"
+  },
+  {
+    "type": "embed",
+    "model": "nomic-embed-text", 
+    "priority": 1,
+    "input": "用于嵌入的示例文本"
+  }
+]
+```
+
+### 优先级格式
+
+优先级可以用字符串或数字指定：
+- **字符串**: `"low"`, `"normal"`, `"high"`, `"critical"`
+- **数字**: `1` (低), `5` (普通), `10` (高), `15` (关键)
+
+### 任务调度
+
+使用 `scheduled_at` 字段和RFC3339格式进行延迟执行：
+```json
+{
+  "type": "chat",
+  "model": "qwen3", 
+  "scheduled_at": "2025-12-25T10:00:00Z",
+  "messages": [{"role": "user", "content": "计划任务"}]
+}
+```
+
+### 批处理执行模式
+
+```bash
+# 异步模式（默认）- 提交后立即返回
+ollama-queue submit batch --file tasks.json
+
+# 同步模式 - 等待所有任务完成
+ollama-queue submit batch --file tasks.json --sync
+
+# JSON输出用于程序化使用
+ollama-queue submit batch --file tasks.json --output json
+```
+
 ## 任务类型
 
 ### 聊天任务
 用于与语言模型进行对话交互。
 
 ```go
-task := queue.NewChatTask("llama2", []models.ChatMessage{
+task := queue.NewChatTask("qwen3", []models.ChatMessage{
     {Role: "system", Content: "你是一个有用的助手"},
     {Role: "user", Content: "解释一下量子计算"},
 }, 
@@ -185,7 +255,7 @@ task := queue.NewChatTask("llama2", []models.ChatMessage{
 用于文本生成和补全。
 
 ```go
-task := queue.NewGenerateTask("codellama", "编写一个计算斐波那契数列的函数",
+task := queue.NewGenerateTask("qwen3", "编写一个计算斐波那契数列的函数",
     queue.WithTaskPriority(models.PriorityNormal),
     queue.WithGenerateSystem("你是一个编程助手"),
     queue.WithGenerateTemplate("### 回复:\n{{ .Response }}"),
@@ -292,7 +362,7 @@ func main() {
     }
 
     // 创建并提交聊天任务
-    task := queue.NewChatTask("llama2", []models.ChatMessage{
+    task := queue.NewChatTask("qwen3", []models.ChatMessage{
         {Role: "user", Content: "你好，你是谁？"},
     }, queue.WithTaskPriority(models.PriorityHigh))
 
@@ -554,8 +624,8 @@ for chunk := range streamChan {
 ```go
 // 提交多个任务
 tasks := []*models.Task{
-    queue.NewChatTask("llama2", []models.ChatMessage{...}),
-    queue.NewGenerateTask("codellama", "编写一个函数"),
+    queue.NewChatTask("qwen3", []models.ChatMessage{...}),
+    queue.NewGenerateTask("qwen3", "编写一个函数"),
     queue.NewEmbedTask("nomic-embed-text", "示例文本"),
 }
 
@@ -587,6 +657,84 @@ go func() {
             event.Type, event.TaskID, event.Status)
     }
 }()
+```
+
+### HTTP客户端批处理和调度
+
+HTTP客户端提供批处理和调度的额外方法：
+
+```go
+import (
+    "time"
+    "github.com/liliang-cn/ollama-queue/pkg/client"
+    "github.com/liliang-cn/ollama-queue/pkg/queue"
+    "github.com/liliang-cn/ollama-queue/internal/models"
+)
+
+// 连接到队列服务器
+cli := client.New("localhost:7125")
+
+// 创建多个任务
+tasks := []*models.Task{
+    queue.NewChatTask("qwen3", []models.ChatMessage{
+        {Role: "user", Content: "第一个任务"},
+    }),
+    queue.NewGenerateTask("qwen3", "生成内容"),
+    queue.NewEmbedTask("nomic-embed-text", "要嵌入的文本"),
+}
+
+// 同步批处理
+results, err := cli.SubmitBatchTasks(tasks)
+if err != nil {
+    log.Fatal(err)
+}
+
+for i, result := range results {
+    if result.Success {
+        fmt.Printf("任务 %d 成功完成\n", i+1)
+    } else {
+        fmt.Printf("任务 %d 失败: %s\n", i+1, result.Error)
+    }
+}
+
+// 异步批处理
+taskIDs, err := cli.SubmitBatchTasksAsync(tasks, func(results []*models.TaskResult) {
+    fmt.Printf("异步批处理完成！处理了 %d 个任务\n", len(results))
+    successCount := 0
+    for _, result := range results {
+        if result.Success {
+            successCount++
+        }
+    }
+    fmt.Printf("成功率: %d/%d\n", successCount, len(results))
+})
+
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("批处理已提交，任务ID: %v\n", taskIDs)
+
+// 调度单个任务
+scheduledTime := time.Now().Add(1 * time.Hour)
+task := queue.NewChatTask("qwen3", []models.ChatMessage{
+    {Role: "user", Content: "这个任务在1小时后运行"},
+})
+
+taskID, err := cli.SubmitScheduledTask(task, scheduledTime)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("调度任务: %s\n", taskID)
+
+// 调度批量任务
+scheduledTaskIDs, err := cli.SubmitScheduledBatchTasksAsync(tasks, scheduledTime, func(results []*models.TaskResult) {
+    fmt.Printf("计划批处理在 %v 完成\n", time.Now())
+})
+
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("计划批处理ID: %v\n", scheduledTaskIDs)
 ```
 
 ## API参考
@@ -627,7 +775,8 @@ type QueueManagerInterface interface {
 | 命令 | 描述 | 示例 |
 |------|------|------|
 | `serve` | 启动带Web界面的队列服务器 | `ollama-queue serve --port 7125` |
-| `submit` | 向服务器提交新任务 | `ollama-queue submit chat --model llama2 --messages "user:你好"` |
+| `submit` | 向服务器提交新任务 | `ollama-queue submit chat --model qwen3 --messages "user:你好"` |
+| `submit batch` | 从JSON文件提交多个任务 | `ollama-queue submit batch --file tasks.json --sync` |
 | `list` | 列出任务（支持过滤） | `ollama-queue list --status running --limit 10` |
 | `status` | 显示任务状态或队列统计 | `ollama-queue status <task-id>` |
 | `cancel` | 取消一个或多个任务 | `ollama-queue cancel <task-id1> <task-id2>` |

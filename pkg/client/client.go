@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/liliang-cn/ollama-queue/internal/models"
 )
@@ -176,4 +178,154 @@ func (c *Client) GetQueueStats() (*models.QueueStats, error) {
 	}
 
 	return &stats, nil
+}
+
+// SubmitBatchTasks submits multiple tasks and waits for all to complete
+func (c *Client) SubmitBatchTasks(tasks []*models.Task) ([]*models.TaskResult, error) {
+	if len(tasks) == 0 {
+		return []*models.TaskResult{}, nil
+	}
+	
+	results := make([]*models.TaskResult, len(tasks))
+	taskIDs := make([]string, len(tasks))
+	
+	// Submit all tasks
+	for i, task := range tasks {
+		taskID, err := c.SubmitTask(task)
+		if err != nil {
+			return nil, fmt.Errorf("failed to submit task %d: %w", i, err)
+		}
+		taskIDs[i] = taskID
+	}
+	
+	// Poll for completion
+	for {
+		completed := 0
+		for i, taskID := range taskIDs {
+			if results[i] != nil {
+				completed++
+				continue
+			}
+			
+			task, err := c.GetTask(taskID)
+			if err != nil {
+				continue // Skip errors and retry
+			}
+			
+			if task.Status == models.StatusCompleted || task.Status == models.StatusFailed {
+				results[i] = &models.TaskResult{
+					TaskID:  taskID,
+					Success: task.Status == models.StatusCompleted,
+					Data:    task.Result,
+					Error:   task.Error,
+				}
+				completed++
+			}
+		}
+		
+		if completed == len(taskIDs) {
+			break
+		}
+		
+		time.Sleep(500 * time.Millisecond)
+	}
+	
+	return results, nil
+}
+
+// SubmitBatchTasksAsync submits multiple tasks and calls callback when all complete
+func (c *Client) SubmitBatchTasksAsync(tasks []*models.Task, callback models.BatchCallback) ([]string, error) {
+	if len(tasks) == 0 {
+		go callback([]*models.TaskResult{})
+		return []string{}, nil
+	}
+	
+	taskIDs := make([]string, len(tasks))
+	
+	// Submit all tasks
+	for i, task := range tasks {
+		taskID, err := c.SubmitTask(task)
+		if err != nil {
+			return nil, fmt.Errorf("failed to submit task %d: %w", i, err)
+		}
+		taskIDs[i] = taskID
+	}
+	
+	// Start monitoring in background
+	go func() {
+		results := make([]*models.TaskResult, len(tasks))
+		completed := make([]bool, len(tasks))
+		var completedCount int
+		var mu sync.Mutex
+		
+		for {
+			mu.Lock()
+			currentCompleted := completedCount
+			mu.Unlock()
+			
+			if currentCompleted == len(tasks) {
+				callback(results)
+				break
+			}
+			
+			for i, taskID := range taskIDs {
+				mu.Lock()
+				if completed[i] {
+					mu.Unlock()
+					continue
+				}
+				mu.Unlock()
+				
+				task, err := c.GetTask(taskID)
+				if err != nil {
+					continue // Skip errors and retry
+				}
+				
+				if task.Status == models.StatusCompleted || task.Status == models.StatusFailed {
+					result := &models.TaskResult{
+						TaskID:  taskID,
+						Success: task.Status == models.StatusCompleted,
+						Data:    task.Result,
+						Error:   task.Error,
+					}
+					
+					mu.Lock()
+					if !completed[i] {
+						results[i] = result
+						completed[i] = true
+						completedCount++
+					}
+					mu.Unlock()
+				}
+			}
+			
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
+	
+	return taskIDs, nil
+}
+
+// SubmitScheduledTask submits a task to be executed at a specific time
+func (c *Client) SubmitScheduledTask(task *models.Task, scheduledAt time.Time) (string, error) {
+	task.ScheduledAt = &scheduledAt
+	return c.SubmitTask(task)
+}
+
+// SubmitScheduledBatchTasks submits multiple tasks with scheduled execution times
+func (c *Client) SubmitScheduledBatchTasks(tasks []*models.Task, scheduledAt time.Time) ([]*models.TaskResult, error) {
+	// Set scheduled time for all tasks
+	for _, task := range tasks {
+		task.ScheduledAt = &scheduledAt
+	}
+	return c.SubmitBatchTasks(tasks)
+}
+
+// SubmitScheduledBatchTasksAsync submits multiple scheduled tasks asynchronously
+func (c *Client) SubmitScheduledBatchTasksAsync(tasks []*models.Task, scheduledAt time.Time, callback models.BatchCallback) ([]string, error) {
+	// Set scheduled time for all tasks
+	for _, task := range tasks {
+		task.ScheduledAt = &scheduledAt
+	}
+	return c.SubmitBatchTasksAsync(tasks, callback)
 }

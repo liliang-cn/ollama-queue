@@ -51,10 +51,10 @@ Use the CLI client to interact with the running server:
 
 ```bash
 # Submit a chat task
-ollama-queue submit chat --model llama2 --messages "user:Hello, how are you?" --priority high
+ollama-queue submit chat --model qwen3 --messages "user:Hello, how are you?" --priority high
 
 # Submit a generation task
-ollama-queue submit generate --model codellama --prompt "Write a Go function to sort an array"
+ollama-queue submit generate --model qwen3 --prompt "Write a Go function to sort an array"
 
 # List all tasks
 ollama-queue list
@@ -67,6 +67,9 @@ ollama-queue cancel <task-id>
 
 # Update task priority
 ollama-queue priority <task-id> high
+
+# Submit batch tasks from file
+ollama-queue submit batch --file tasks.json --sync
 ```
 
 ### HTTP Client Integration
@@ -90,7 +93,7 @@ func main() {
 	cli := client.New("localhost:7125")
 
 	// Create and submit a chat task
-	task := queue.NewChatTask("llama2", []models.ChatMessage{
+	task := queue.NewChatTask("qwen3", []models.ChatMessage{
 		{Role: "user", Content: "Hello, how are you?"},
 	}, queue.WithTaskPriority(models.PriorityHigh))
 
@@ -167,13 +170,80 @@ The server provides a real-time web interface accessible at `http://localhost:71
                     └─────────────────────────────┘
 ```
 
+## Batch Task Submission
+
+Submit multiple tasks at once using JSON batch files for efficient bulk processing.
+
+### Batch File Format
+
+Create a JSON file with an array of task specifications:
+
+```json
+[
+  {
+    "type": "chat",
+    "model": "qwen3",
+    "priority": 15,
+    "messages": [
+      {"role": "user", "content": "Hello, how are you?"}
+    ],
+    "system": "You are a helpful assistant",
+    "scheduled_at": "2025-12-25T10:00:00Z"
+  },
+  {
+    "type": "generate", 
+    "model": "qwen3",
+    "priority": "high",
+    "prompt": "Write a Go function to reverse a string",
+    "system": "You are a coding assistant"
+  },
+  {
+    "type": "embed",
+    "model": "nomic-embed-text",
+    "priority": 1,
+    "input": "Sample text for embedding"
+  }
+]
+```
+
+### Priority Formats
+
+Priorities can be specified as strings or numbers:
+- **String**: `"low"`, `"normal"`, `"high"`, `"critical"`
+- **Numeric**: `1` (low), `5` (normal), `10` (high), `15` (critical)
+
+### Scheduling Tasks
+
+Use the `scheduled_at` field with RFC3339 format for delayed execution:
+```json
+{
+  "type": "chat",
+  "model": "qwen3", 
+  "scheduled_at": "2025-12-25T10:00:00Z",
+  "messages": [{"role": "user", "content": "Scheduled task"}]
+}
+```
+
+### Batch Execution Modes
+
+```bash
+# Asynchronous mode (default) - submit and return immediately
+ollama-queue submit batch --file tasks.json
+
+# Synchronous mode - wait for all tasks to complete
+ollama-queue submit batch --file tasks.json --sync
+
+# JSON output for programmatic use
+ollama-queue submit batch --file tasks.json --output json
+```
+
 ## Task Types
 
 ### Chat Tasks
 For conversational interactions with language models.
 
 ```go
-task := queue.NewChatTask("llama2", []models.ChatMessage{
+task := queue.NewChatTask("qwen3", []models.ChatMessage{
     {Role: "system", Content: "You are a helpful assistant"},
     {Role: "user", Content: "Explain quantum computing"},
 }, 
@@ -187,11 +257,10 @@ task := queue.NewChatTask("llama2", []models.ChatMessage{
 For text generation and completion.
 
 ```go
-task := queue.NewGenerateTask("codellama", "Write a function to calculate fibonacci numbers",
+task := queue.NewGenerateTask("qwen3", "Write a function to calculate fibonacci numbers",
     queue.WithTaskPriority(models.PriorityNormal),
     queue.WithGenerateSystem("You are a coding assistant"),
-    queue.WithGenerateTemplate("### Response:
-{{ .Response }}"),
+    queue.WithGenerateTemplate("### Response:\n{{ .Response }}"),
 )
 ```
 
@@ -296,7 +365,7 @@ func main() {
 	}
 
 	// Create and submit a chat task
-	task := queue.NewChatTask("llama2", []models.ChatMessage{
+	task := queue.NewChatTask("qwen3", []models.ChatMessage{
 		{Role: "user", Content: "Hello, how are you?"},
 	}, queue.WithTaskPriority(models.PriorityHigh))
 
@@ -504,7 +573,7 @@ func main() {
 	defer processor.Close()
 
 	// Example of async chat processing
-	processor.ProcessChatAsync("Hello, how are you?", "llama2", func(response string, err error) {
+	processor.ProcessChatAsync("Hello, how are you?", "qwen3", func(response string, err error) {
 		if err != nil {
 			fmt.Printf("Async chat failed: %v
 ", err)
@@ -516,7 +585,7 @@ func main() {
 
 	// Example of batch processing
 	messages := []string{"First message", "Second message"}
-	responses, err := processor.ProcessBatch(messages, "llama2")
+	responses, err := processor.ProcessBatch(messages, "qwen3")
 	if err != nil {
 		fmt.Printf("Batch processing failed: %v
 ", err)
@@ -595,8 +664,8 @@ Stream completed")
 ```go
 // Submit multiple tasks
 tasks := []*models.Task{
-    queue.NewChatTask("llama2", []models.ChatMessage{...}),
-    queue.NewGenerateTask("codellama", "Write a function"),
+    queue.NewChatTask("qwen3", []models.ChatMessage{...}),
+    queue.NewGenerateTask("qwen3", "Write a function"),
     queue.NewEmbedTask("nomic-embed-text", "Sample text"),
 }
 
@@ -630,6 +699,84 @@ go func() {
             event.Type, event.TaskID, event.Status)
     }
 }()
+```
+
+### HTTP Client Batch & Scheduling
+
+The HTTP client provides additional methods for batch processing and scheduling:
+
+```go
+import (
+    "time"
+    "github.com/liliang-cn/ollama-queue/pkg/client"
+    "github.com/liliang-cn/ollama-queue/pkg/queue"
+    "github.com/liliang-cn/ollama-queue/internal/models"
+)
+
+// Connect to queue server
+cli := client.New("localhost:7125")
+
+// Create multiple tasks
+tasks := []*models.Task{
+    queue.NewChatTask("qwen3", []models.ChatMessage{
+        {Role: "user", Content: "First task"},
+    }),
+    queue.NewGenerateTask("qwen3", "Generate content"),
+    queue.NewEmbedTask("nomic-embed-text", "Text to embed"),
+}
+
+// Synchronous batch processing
+results, err := cli.SubmitBatchTasks(tasks)
+if err != nil {
+    log.Fatal(err)
+}
+
+for i, result := range results {
+    if result.Success {
+        fmt.Printf("Task %d completed successfully\n", i+1)
+    } else {
+        fmt.Printf("Task %d failed: %s\n", i+1, result.Error)
+    }
+}
+
+// Asynchronous batch processing
+taskIDs, err := cli.SubmitBatchTasksAsync(tasks, func(results []*models.TaskResult) {
+    fmt.Printf("Async batch completed! %d tasks processed\n", len(results))
+    successCount := 0
+    for _, result := range results {
+        if result.Success {
+            successCount++
+        }
+    }
+    fmt.Printf("Success rate: %d/%d\n", successCount, len(results))
+})
+
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Batch submitted with task IDs: %v\n", taskIDs)
+
+// Schedule a single task
+scheduledTime := time.Now().Add(1 * time.Hour)
+task := queue.NewChatTask("qwen3", []models.ChatMessage{
+    {Role: "user", Content: "This runs in 1 hour"},
+})
+
+taskID, err := cli.SubmitScheduledTask(task, scheduledTime)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Scheduled task: %s\n", taskID)
+
+// Schedule a batch of tasks
+scheduledTaskIDs, err := cli.SubmitScheduledBatchTasksAsync(tasks, scheduledTime, func(results []*models.TaskResult) {
+    fmt.Printf("Scheduled batch completed at %v\n", time.Now())
+})
+
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Scheduled batch IDs: %v\n", scheduledTaskIDs)
 ```
 
 ## API Reference
@@ -670,7 +817,8 @@ type QueueManagerInterface interface {
 | Command | Description | Example |
 |---------|-------------|---------|
 | `serve` | Start the queue server with web interface | `ollama-queue serve --port 7125` |
-| `submit` | Submit a new task to the server | `ollama-queue submit chat --model llama2 --messages "user:Hello"` |
+| `submit` | Submit a new task to the server | `ollama-queue submit chat --model qwen3 --messages "user:Hello"` |
+| `submit batch` | Submit multiple tasks from a JSON file | `ollama-queue submit batch --file tasks.json --sync` |
 | `list` | List tasks with optional filtering | `ollama-queue list --status running --limit 10` |
 | `status` | Show task status or queue statistics | `ollama-queue status <task-id>` |
 | `cancel` | Cancel one or more tasks | `ollama-queue cancel <task-id1> <task-id2>` |

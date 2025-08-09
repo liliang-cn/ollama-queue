@@ -198,6 +198,13 @@ func WithTaskMaxRetries(maxRetries int) TaskOption {
 	}
 }
 
+// WithTaskScheduledAt sets the scheduled execution time for a task
+func WithTaskScheduledAt(scheduledAt time.Time) TaskOption {
+	return func(task *models.Task) {
+		task.ScheduledAt = &scheduledAt
+	}
+}
+
 // WithChatSystem sets the system message for chat tasks
 func WithChatSystem(system string) TaskOption {
 	return func(task *models.Task) {

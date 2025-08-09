@@ -45,6 +45,7 @@ type Task struct {
 	Payload     any                   `json:"payload"`
 	Options     map[string]any        `json:"options"`
 	CreatedAt   time.Time             `json:"created_at"`
+	ScheduledAt *time.Time            `json:"scheduled_at,omitempty"`
 	StartedAt   *time.Time            `json:"started_at,omitempty"`
 	CompletedAt *time.Time            `json:"completed_at,omitempty"`
 	Error       string                `json:"error,omitempty"`
