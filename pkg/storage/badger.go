@@ -22,6 +22,12 @@ type Storage interface {
 	GetTasksByStatus(status models.TaskStatus) ([]*models.Task, error)
 	CleanupCompletedTasks(maxTasks int, olderThan time.Duration) error
 	GetStats() (*models.QueueStats, error)
+	
+	// Cron task operations
+	SaveCronTask(cronTask *models.CronTask) error
+	LoadCronTask(cronID string) (*models.CronTask, error)
+	DeleteCronTask(cronID string) error
+	ListCronTasks(filter models.CronFilter) ([]*models.CronTask, error)
 }
 
 // BadgerStorage implements Storage using BadgerDB
@@ -394,6 +400,145 @@ func (s *BadgerStorage) GetStats() (*models.QueueStats, error) {
 	return stats, err
 }
 
+// SaveCronTask saves a cron task to the database
+func (s *BadgerStorage) SaveCronTask(cronTask *models.CronTask) error {
+	return s.db.Update(func(txn *badger.Txn) error {
+		cronData, err := json.Marshal(cronTask)
+		if err != nil {
+			return fmt.Errorf("failed to marshal cron task: %w", err)
+		}
+		
+		key := fmt.Sprintf("cron:%s", cronTask.ID)
+		err = txn.Set([]byte(key), cronData)
+		if err != nil {
+			return fmt.Errorf("failed to save cron task: %w", err)
+		}
+		
+		// Create index entries for efficient querying
+		enabledKey := fmt.Sprintf("cron_enabled:%t:%s", cronTask.Enabled, cronTask.ID)
+		err = txn.Set([]byte(enabledKey), []byte(cronTask.ID))
+		if err != nil {
+			return fmt.Errorf("failed to create enabled index: %w", err)
+		}
+		
+		nameKey := fmt.Sprintf("cron_name:%s:%s", cronTask.Name, cronTask.ID)
+		err = txn.Set([]byte(nameKey), []byte(cronTask.ID))
+		if err != nil {
+			return fmt.Errorf("failed to create name index: %w", err)
+		}
+		
+		return nil
+	})
+}
+
+// LoadCronTask loads a cron task from the database
+func (s *BadgerStorage) LoadCronTask(cronID string) (*models.CronTask, error) {
+	var cronTask models.CronTask
+	
+	err := s.db.View(func(txn *badger.Txn) error {
+		key := fmt.Sprintf("cron:%s", cronID)
+		item, err := txn.Get([]byte(key))
+		if err != nil {
+			if err == badger.ErrKeyNotFound {
+				return fmt.Errorf("cron task not found: %s", cronID)
+			}
+			return fmt.Errorf("failed to get cron task: %w", err)
+		}
+		
+		return item.Value(func(val []byte) error {
+			return json.Unmarshal(val, &cronTask)
+		})
+	})
+	
+	return &cronTask, err
+}
+
+// DeleteCronTask deletes a cron task from the database
+func (s *BadgerStorage) DeleteCronTask(cronID string) error {
+	return s.db.Update(func(txn *badger.Txn) error {
+		// First, get the cron task to obtain its properties for index cleanup
+		key := fmt.Sprintf("cron:%s", cronID)
+		item, err := txn.Get([]byte(key))
+		if err != nil {
+			if err == badger.ErrKeyNotFound {
+				return nil // Cron task already deleted
+			}
+			return fmt.Errorf("failed to get cron task for deletion: %w", err)
+		}
+		
+		var cronTask models.CronTask
+		err = item.Value(func(val []byte) error {
+			return json.Unmarshal(val, &cronTask)
+		})
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal cron task for deletion: %w", err)
+		}
+		
+		// Delete the cron task
+		err = txn.Delete([]byte(key))
+		if err != nil {
+			return fmt.Errorf("failed to delete cron task: %w", err)
+		}
+		
+		// Delete index entries
+		enabledKey := fmt.Sprintf("cron_enabled:%t:%s", cronTask.Enabled, cronID)
+		txn.Delete([]byte(enabledKey))
+		
+		nameKey := fmt.Sprintf("cron_name:%s:%s", cronTask.Name, cronID)
+		txn.Delete([]byte(nameKey))
+		
+		return nil
+	})
+}
+
+// ListCronTasks retrieves cron tasks based on filter criteria
+func (s *BadgerStorage) ListCronTasks(filter models.CronFilter) ([]*models.CronTask, error) {
+	var cronTasks []*models.CronTask
+	
+	err := s.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		
+		prefix := []byte("cron:")
+		count := 0
+		
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			if filter.Offset > 0 && count < filter.Offset {
+				count++
+				continue
+			}
+			
+			if filter.Limit > 0 && len(cronTasks) >= filter.Limit {
+				break
+			}
+			
+			item := it.Item()
+			
+			var cronTask models.CronTask
+			err := item.Value(func(val []byte) error {
+				return json.Unmarshal(val, &cronTask)
+			})
+			if err != nil {
+				continue
+			}
+			
+			// Apply filters
+			if !s.matchesCronFilter(&cronTask, filter) {
+				count++
+				continue
+			}
+			
+			cronTasks = append(cronTasks, &cronTask)
+			count++
+		}
+		
+		return nil
+	})
+	
+	return cronTasks, err
+}
+
 // Helper methods
 
 func (s *BadgerStorage) loadTaskInTxn(txn *badger.Txn, taskID string) (*models.Task, error) {
@@ -472,6 +617,29 @@ func (s *BadgerStorage) matchesFilter(task *models.Task, filter models.TaskFilte
 		found := false
 		for _, priority := range filter.Priority {
 			if task.Priority == priority {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	
+	return true
+}
+
+func (s *BadgerStorage) matchesCronFilter(cronTask *models.CronTask, filter models.CronFilter) bool {
+	// Check enabled filter
+	if filter.Enabled != nil && cronTask.Enabled != *filter.Enabled {
+		return false
+	}
+	
+	// Check names filter
+	if len(filter.Names) > 0 {
+		found := false
+		for _, name := range filter.Names {
+			if cronTask.Name == name {
 				found = true
 				break
 			}

@@ -33,15 +33,15 @@ func main() {
 
 	// Create a batch of different tasks
 	batchTasks := []*models.Task{
-		queue.NewChatTask("llama2", []models.ChatMessage{
+		queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "What is artificial intelligence?"},
 		}, queue.WithTaskPriority(models.PriorityHigh)),
 
-		queue.NewChatTask("llama2", []models.ChatMessage{
+		queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "Explain quantum computing"},
 		}, queue.WithTaskPriority(models.PriorityNormal)),
 
-		queue.NewGenerateTask("codellama", "Write a function to reverse a string",
+		queue.NewGenerateTask("qwen3", "Write a function to reverse a string",
 			queue.WithTaskPriority(models.PriorityNormal)),
 
 		queue.NewEmbedTask("nomic-embed-text", "Sample text for embedding",
@@ -73,15 +73,15 @@ func main() {
 
 	// Create another batch of tasks
 	asyncBatchTasks := []*models.Task{
-		queue.NewChatTask("llama2", []models.ChatMessage{
+		queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "Tell me about machine learning"},
 		}),
 
-		queue.NewChatTask("llama2", []models.ChatMessage{
+		queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "What is deep learning?"},
 		}),
 
-		queue.NewGenerateTask("codellama", "Create a simple sorting algorithm"),
+		queue.NewGenerateTask("qwen3", "Create a simple sorting algorithm"),
 	}
 
 	var completedCount int
@@ -90,16 +90,16 @@ func main() {
 	// Submit async batch
 	taskIDs, err := qm.SubmitBatchTasksAsync(asyncBatchTasks, func(results []*models.TaskResult) {
 		fmt.Printf("Async batch of %d tasks completed!\n", len(results))
-		
+
 		successCount := 0
 		for _, result := range results {
 			if result.Success {
 				successCount++
 			}
 		}
-		
-		fmt.Printf("Success rate: %d/%d (%.1f%%)\n", 
-			successCount, len(results), 
+
+		fmt.Printf("Success rate: %d/%d (%.1f%%)\n",
+			successCount, len(results),
 			float64(successCount)/float64(len(results))*100)
 	})
 
@@ -115,19 +115,19 @@ func main() {
 	// Create tasks with different priorities
 	mixedBatch := []*models.Task{
 		// Critical priority - should be processed first
-		queue.NewChatTask("llama2", []models.ChatMessage{
+		queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "URGENT: System status check"},
 		}, queue.WithTaskPriority(models.PriorityCritical)),
 
 		// Low priority tasks
-		queue.NewGenerateTask("codellama", "Write documentation",
+		queue.NewGenerateTask("qwen3", "Write documentation",
 			queue.WithTaskPriority(models.PriorityLow)),
 
-		queue.NewGenerateTask("codellama", "Refactor legacy code",
+		queue.NewGenerateTask("qwen3", "Refactor legacy code",
 			queue.WithTaskPriority(models.PriorityLow)),
 
 		// High priority task
-		queue.NewChatTask("llama2", []models.ChatMessage{
+		queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "Quick question about API"},
 		}, queue.WithTaskPriority(models.PriorityHigh)),
 
@@ -137,7 +137,7 @@ func main() {
 	}
 
 	fmt.Printf("Submitting mixed priority batch...\n")
-	
+
 	// Submit individually to observe execution order
 	for i, task := range mixedBatch {
 		taskID, err := qm.SubmitTaskWithCallback(task, func(result *models.TaskResult) {
@@ -145,17 +145,17 @@ func main() {
 			completedCount++
 			current := completedCount
 			mu.Unlock()
-			
-			fmt.Printf("[%d] Task %s completed (Priority: %d) - Success: %v\n", 
+
+			fmt.Printf("[%d] Task %s completed (Priority: %d) - Success: %v\n",
 				current, result.TaskID[:8], task.Priority, result.Success)
 		})
-		
+
 		if err != nil {
 			log.Printf("Failed to submit task %d: %v", i, err)
 			continue
 		}
-		
-		fmt.Printf("  Submitted task %d (%s priority) - ID: %s\n", 
+
+		fmt.Printf("  Submitted task %d (%s priority) - ID: %s\n",
 			i+1, getPriorityName(task.Priority), taskID[:8])
 	}
 
@@ -164,11 +164,11 @@ func main() {
 		mu.Lock()
 		completed := completedCount
 		mu.Unlock()
-		
+
 		if completed >= len(mixedBatch) {
 			break
 		}
-		
+
 		time.Sleep(100 * time.Millisecond)
 	}
 
@@ -186,9 +186,9 @@ func main() {
 		eventCount := 0
 		for event := range eventChan {
 			eventCount++
-			fmt.Printf("Event #%d: %s - Task %s (%s)\n", 
+			fmt.Printf("Event #%d: %s - Task %s (%s)\n",
 				eventCount, event.Type, event.TaskID[:8], event.Status)
-			
+
 			if eventCount >= 5 { // Stop after 5 events for demo
 				break
 			}
@@ -197,13 +197,13 @@ func main() {
 
 	// Create final batch
 	finalBatch := []*models.Task{
-		queue.NewChatTask("llama2", []models.ChatMessage{
+		queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "Final test message 1"},
 		}),
-		queue.NewChatTask("llama2", []models.ChatMessage{
+		queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "Final test message 2"},
 		}),
-		queue.NewGenerateTask("codellama", "Final code generation test"),
+		queue.NewGenerateTask("qwen3", "Final code generation test"),
 	}
 
 	fmt.Println("Submitting final monitoring batch...")

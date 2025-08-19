@@ -14,7 +14,7 @@ Basic usage example:
 	import (
 		"context"
 		"log"
-		
+
 		"github.com/liliang-cn/ollama-queue/internal/models"
 		"github.com/liliang-cn/ollama-queue/pkg/queue"
 	)
@@ -37,7 +37,7 @@ Basic usage example:
 		}
 
 		// Create and submit a chat task
-		task := queue.NewChatTask("llama2", []models.ChatMessage{
+		task := queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "Hello, world!"},
 		})
 

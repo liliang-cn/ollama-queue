@@ -16,7 +16,7 @@ func main() {
 
 	// Example 1: Submit a chat task via HTTP client
 	fmt.Println("=== Example 1: Chat Task via HTTP Client ===")
-	chatTask := queue.NewChatTask("llama2", []models.ChatMessage{
+	chatTask := queue.NewChatTask("qwen3", []models.ChatMessage{
 		{Role: "user", Content: "What is the capital of Japan?"},
 	}, queue.WithTaskPriority(models.PriorityHigh))
 
@@ -29,7 +29,7 @@ func main() {
 	// Example 2: Submit a generation task
 	fmt.Println("\n=== Example 2: Generation Task ===")
 	genTask := queue.NewGenerateTask(
-		"codellama",
+		"qwen3",
 		"Write a Python function to sort a list using quicksort",
 		queue.WithTaskPriority(models.PriorityNormal),
 	)

@@ -40,7 +40,7 @@ func main() {
 
     // Example 1: Simple chat task
     fmt.Println("\n📝 Example 1: Simple Chat Task")
-    chatTask := queue.NewChatTask("llama2", []models.ChatMessage{
+    chatTask := queue.NewChatTask("qwen3", []models.ChatMessage{
         {Role: "user", Content: "What is the capital of France?"},
     }, queue.WithTaskPriority(models.PriorityHigh))
 
@@ -53,7 +53,7 @@ func main() {
     // Example 2: Async processing with callback
     fmt.Println("\n🔄 Example 2: Async Processing")
     asyncTask := queue.NewGenerateTask(
-        "codellama", 
+        "qwen3",
         "Write a simple 'Hello, World!' program in Go",
         queue.WithTaskPriority(models.PriorityNormal),
     )
@@ -72,9 +72,9 @@ func main() {
 
     // Example 3: Streaming task
     fmt.Println("\n🌊 Example 3: Streaming Task")
-    streamTask := queue.NewChatTask("llama2", []models.ChatMessage{
+    streamTask := queue.NewChatTask("qwen3", []models.ChatMessage{
         {Role: "user", Content: "Tell me a short joke"},
-    }, 
+    },
         queue.WithChatStreaming(true),
         queue.WithTaskPriority(models.PriorityHigh),
     )
@@ -102,10 +102,10 @@ func main() {
     // Example 4: Batch processing
     fmt.Println("\n📦 Example 4: Batch Processing")
     batchTasks := []*models.Task{
-        queue.NewChatTask("llama2", []models.ChatMessage{
+        queue.NewChatTask("qwen3", []models.ChatMessage{
             {Role: "user", Content: "What is Go language?"},
         }),
-        queue.NewChatTask("llama2", []models.ChatMessage{
+        queue.NewChatTask("qwen3", []models.ChatMessage{
             {Role: "user", Content: "What is Python?"},
         }),
         queue.NewEmbedTask("nomic-embed-text", "Sample text for embedding"),
@@ -154,14 +154,16 @@ func main() {
 ## Running the Example
 
 1. Make sure Ollama is running:
+
    ```bash
    ollama serve
    ```
 
 2. Download required models:
+
    ```bash
-   ollama pull llama2
-   ollama pull codellama
+   ollama pull qwen3
+   ollama pull qwen3
    ollama pull nomic-embed-text
    ```
 

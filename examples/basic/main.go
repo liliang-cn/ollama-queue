@@ -31,7 +31,7 @@ func main() {
 
 	// Example 1: Basic chat task
 	fmt.Println("=== Example 1: Basic Chat Task ===")
-	chatTask := queue.NewChatTask("llama2", []models.ChatMessage{
+	chatTask := queue.NewChatTask("qwen3", []models.ChatMessage{
 		{Role: "user", Content: "What is the capital of France?"},
 	})
 
@@ -44,7 +44,7 @@ func main() {
 	// Example 2: High priority generation task with callback
 	fmt.Println("\n=== Example 2: High Priority Generation Task ===")
 	genTask := queue.NewGenerateTask(
-		"codellama",
+		"qwen3",
 		"Write a Go function to calculate the factorial of a number",
 		queue.WithTaskPriority(models.PriorityHigh),
 		queue.WithGenerateSystem("You are an expert Go programmer"),

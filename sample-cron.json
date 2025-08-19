@@ -1,0 +1,28 @@
+{
+  "name": "Daily Summary Report",
+  "cron_expr": "0 9 * * 1-5",
+  "enabled": true,
+  "task_template": {
+    "type": "chat",
+    "model": "qwen3",
+    "priority": 5,
+    "payload": [
+      {
+        "role": "system",
+        "content": "You are a helpful AI assistant that provides daily summaries."
+      },
+      {
+        "role": "user", 
+        "content": "Please provide a brief morning briefing and summary of important topics for today."
+      }
+    ],
+    "options": {
+      "stream": false
+    }
+  },
+  "metadata": {
+    "department": "operations",
+    "created_by": "admin",
+    "description": "Automated daily briefing for weekdays"
+  }
+}

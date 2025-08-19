@@ -29,7 +29,7 @@ func main() {
 
 	// Example 1: Streaming Chat
 	fmt.Println("=== Streaming Chat Example ===")
-	chatTask := queue.NewChatTask("llama2", []models.ChatMessage{
+	chatTask := queue.NewChatTask("qwen3", []models.ChatMessage{
 		{Role: "user", Content: "Tell me a short story about a robot"},
 	},
 		queue.WithChatStreaming(true),
@@ -62,7 +62,7 @@ func main() {
 	// Example 2: Streaming Generation
 	fmt.Println("\n=== Streaming Generation Example ===")
 	genTask := queue.NewGenerateTask(
-		"codellama",
+		"qwen3",
 		"Write a Python function to implement a binary search algorithm with detailed comments",
 		queue.WithGenerateStreaming(true),
 		queue.WithGenerateSystem("You are a computer science expert"),
@@ -97,12 +97,12 @@ func main() {
 
 	// Create multiple streaming tasks
 	tasks := []*models.Task{
-		queue.NewChatTask("llama2", []models.ChatMessage{
+		queue.NewChatTask("qwen3", []models.ChatMessage{
 			{Role: "user", Content: "Explain machine learning in simple terms"},
 		}, queue.WithChatStreaming(true)),
 
 		queue.NewGenerateTask(
-			"codellama",
+			"qwen3",
 			"Create a simple REST API in Go",
 			queue.WithGenerateStreaming(true),
 		),

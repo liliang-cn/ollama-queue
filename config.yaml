@@ -1,0 +1,47 @@
+# Example configuration for ollama-queue with remote scheduling
+
+# Ollama configuration
+ollama_host: "http://localhost:11434"
+ollama_timeout: "5m"
+
+# Queue configuration
+max_workers: 4
+storage_path: "./data"
+cleanup_interval: "1h"
+max_completed_tasks: 1000
+
+# Scheduling configuration
+scheduling_interval: "1s"
+batch_size: 10
+
+# Retry configuration
+retry_config:
+  max_retries: 3
+  initial_delay: "1s"
+  max_delay: "30s"
+  backoff_factor: 2.0
+
+# Remote scheduling configuration
+remote_scheduling:
+  enabled: true
+  health_check_interval: "30s"
+  fallback_to_local: true
+
+  # Local-first policy settings
+  max_local_queue_size: 50 # Use remote when local queue exceeds this size
+  local_first_policy: true # Prefer local execution unless queue is full or high priority
+
+  endpoints:
+    # Local AI server (OpenAI-compatible)
+    - name: "LocalAI"
+      base_url: "http://localhost:1234/v1"
+      api_key: "" # No API key needed for local
+      priority: 5
+      enabled: true
+
+# Logging configuration
+log_level: "info"
+log_file: ""
+
+# Server configuration
+listen_addr: "localhost:7125"

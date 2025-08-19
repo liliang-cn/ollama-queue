@@ -329,3 +329,191 @@ func (c *Client) SubmitScheduledBatchTasksAsync(tasks []*models.Task, scheduledA
 	}
 	return c.SubmitBatchTasksAsync(tasks, callback)
 }
+
+// Cron Task Management Methods
+
+// AddCronTask adds a new cron task
+func (c *Client) AddCronTask(cronTask *models.CronTask) (string, error) {
+	body, err := json.Marshal(cronTask)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/api/cron", c.addr), bytes.NewBuffer(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	var response struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return "", err
+	}
+
+	return response.ID, nil
+}
+
+// GetCronTask retrieves a cron task by ID
+func (c *Client) GetCronTask(cronID string) (*models.CronTask, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/api/cron/%s", c.addr, cronID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	var cronTask models.CronTask
+	if err := json.NewDecoder(resp.Body).Decode(&cronTask); err != nil {
+		return nil, err
+	}
+
+	return &cronTask, nil
+}
+
+// UpdateCronTask updates an existing cron task
+func (c *Client) UpdateCronTask(cronTask *models.CronTask) error {
+	body, err := json.Marshal(cronTask)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PUT", fmt.Sprintf("http://%s/api/cron/%s", c.addr, cronTask.ID), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// RemoveCronTask removes a cron task
+func (c *Client) RemoveCronTask(cronID string) error {
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("http://%s/api/cron/%s", c.addr, cronID), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// ListCronTasks lists cron tasks with optional filters
+func (c *Client) ListCronTasks(filter models.CronFilter) ([]*models.CronTask, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/api/cron", c.addr), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	q := req.URL.Query()
+	if filter.Enabled != nil {
+		q.Set("enabled", fmt.Sprintf("%t", *filter.Enabled))
+	}
+	if len(filter.Names) > 0 {
+		for _, name := range filter.Names {
+			q.Add("name", name)
+		}
+	}
+	if filter.Limit > 0 {
+		q.Set("limit", fmt.Sprintf("%d", filter.Limit))
+	}
+	if filter.Offset > 0 {
+		q.Set("offset", fmt.Sprintf("%d", filter.Offset))
+	}
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	var cronTasks []*models.CronTask
+	if err := json.NewDecoder(resp.Body).Decode(&cronTasks); err != nil {
+		return nil, err
+	}
+
+	return cronTasks, nil
+}
+
+// EnableCronTask enables a cron task
+func (c *Client) EnableCronTask(cronID string) error {
+	req, err := http.NewRequest("PUT", fmt.Sprintf("http://%s/api/cron/%s/enable", c.addr, cronID), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// DisableCronTask disables a cron task
+func (c *Client) DisableCronTask(cronID string) error {
+	req, err := http.NewRequest("PUT", fmt.Sprintf("http://%s/api/cron/%s/disable", c.addr, cronID), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
