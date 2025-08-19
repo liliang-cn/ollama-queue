@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"github.com/liliang-cn/ollama-queue/pkg/storage"
 )
 
@@ -84,9 +84,13 @@ func (cs *CronScheduler) AddCronTask(cronTask *models.CronTask) error {
 	}
 	cronTask.UpdatedAt = now
 
-	// Calculate next run time
-	nextRun := cronExpr.NextTime(now)
-	cronTask.NextRun = &nextRun
+	// Calculate next run time only if enabled
+	if cronTask.Enabled {
+		nextRun := cronExpr.NextTime(now)
+		cronTask.NextRun = &nextRun
+	} else {
+		cronTask.NextRun = nil
+	}
 
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
@@ -98,10 +102,16 @@ func (cs *CronScheduler) AddCronTask(cronTask *models.CronTask) error {
 
 	// Add to memory
 	cs.cronTasks[cronTask.ID] = cronTask
-	cs.nextRuns[cronTask.ID] = nextRun
+	if cronTask.Enabled && cronTask.NextRun != nil {
+		cs.nextRuns[cronTask.ID] = *cronTask.NextRun
+	}
 
+	nextRunStr := "N/A (disabled)"
+	if cronTask.NextRun != nil {
+		nextRunStr = cronTask.NextRun.Format(time.RFC3339)
+	}
 	log.Printf("Added cron task %s (%s) with expression %s, next run: %s", 
-		cronTask.ID, cronTask.Name, cronTask.CronExpr, nextRun.Format(time.RFC3339))
+		cronTask.ID, cronTask.Name, cronTask.CronExpr, nextRunStr)
 
 	return nil
 }

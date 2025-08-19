@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"gopkg.in/yaml.v3"
 )
 

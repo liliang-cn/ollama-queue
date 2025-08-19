@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/liliang-cn/ollama-go"
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 )
 
 // Executor interface defines task execution operations

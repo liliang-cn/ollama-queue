@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 )
 
 func TestBadgerStorage_OpenClose(t *testing.T) {

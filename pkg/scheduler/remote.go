@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"github.com/liliang-cn/ollama-queue/pkg/storage"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"

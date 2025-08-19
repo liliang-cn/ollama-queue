@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"github.com/liliang-cn/ollama-queue/pkg/executor"
 	"github.com/liliang-cn/ollama-queue/pkg/scheduler"
 	"github.com/liliang-cn/ollama-queue/pkg/storage"

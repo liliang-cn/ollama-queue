@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 )
 
 // QueueManagerInterface defines the public API for the queue manager

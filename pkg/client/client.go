@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 )
 
 // Client is a client for the Ollama Queue server.

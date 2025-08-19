@@ -20,10 +20,19 @@ var (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "ollama-queue",
-	Short: "A task queue management system for Ollama models",
-	Long: `Ollama Queue is a Go-based task queue system that provides efficient task management,
-priority scheduling, and task cancellation for Ollama models. It can be used as both a
-library and a command-line tool for managing AI model tasks.`,
+	Short: "Ollama Queue Client - Command-line client for Ollama Queue Server",
+	Long: `Ollama Queue Client is a command-line interface for interacting with Ollama Queue Server.
+It provides commands for task submission, monitoring, and management.
+
+Before using the client, make sure the Ollama Queue Server is running:
+  ollama-queue-server
+
+Client commands:
+- Task management: submit, cancel, status, list, priority
+- Cron scheduling: cron add, cron list, cron enable/disable
+- Queue monitoring: status, list with filters
+
+All commands connect to the server via HTTP API.`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

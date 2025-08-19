@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"github.com/liliang-cn/ollama-queue/pkg/client"
 	"github.com/liliang-cn/ollama-queue/pkg/config"
 	"github.com/liliang-cn/ollama-queue/pkg/queue"

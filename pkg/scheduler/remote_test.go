@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 	"github.com/stretchr/testify/assert"
@@ -41,6 +41,12 @@ func (m *MockStorage) GetStats() (*models.QueueStats, error)                    
 func (m *MockStorage) CleanupCompletedTasks(maxTasks int, maxAge time.Duration) error       { return nil }
 func (m *MockStorage) UpdateTaskStatus(taskID string, status models.TaskStatus) error { return nil }
 func (m *MockStorage) DeleteTask(taskID string) error { return nil }
+
+// Cron task operations
+func (m *MockStorage) SaveCronTask(cronTask *models.CronTask) error { return nil }
+func (m *MockStorage) LoadCronTask(cronID string) (*models.CronTask, error) { return nil, nil }
+func (m *MockStorage) DeleteCronTask(cronID string) error { return nil }
+func (m *MockStorage) ListCronTasks(filter models.CronFilter) ([]*models.CronTask, error) { return nil, nil }
 
 // MockScheduler is a mock implementation of the Scheduler interface for testing
 type MockScheduler struct {

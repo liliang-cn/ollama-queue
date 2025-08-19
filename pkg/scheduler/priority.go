@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 )
 
 // Scheduler interface defines task scheduling operations

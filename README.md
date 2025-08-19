@@ -30,17 +30,23 @@ go get github.com/liliang-cn/ollama-queue
 
 ### Server Mode (Recommended)
 
-Start the server with web interface:
+Start the dedicated server with web interface:
 
 ```bash
-# Start server (default port 7125)
-ollama-queue serve
+# Start server (default localhost:7125)  
+ollama-queue-server
 
-# Start server on custom port
-ollama-queue serve --port 9090
+# Start server on custom host and port
+ollama-queue-server --host 0.0.0.0 --port 9090
 
 # Start server with custom data directory
-ollama-queue serve --data-dir ./my-queue-data
+ollama-queue-server --data-dir ./my-queue-data
+
+# Start server with custom Ollama host
+ollama-queue-server --ollama-host http://192.168.1.100:11434
+
+# Start with verbose logging
+ollama-queue-server --verbose
 ```
 
 Then open http://localhost:7125 in your browser to access the web interface.
@@ -83,7 +89,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"github.com/liliang-cn/ollama-queue/pkg/client"
 	"github.com/liliang-cn/ollama-queue/pkg/queue"
 )
@@ -144,22 +150,22 @@ The server provides a real-time web interface accessible at `http://localhost:71
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Web Browser   │    │   CLI Client    │    │   HTTP Client   │
-│                 │    │                 │    │   Library       │
+│   Web Browser   │    │ ollama-queue    │    │   HTTP Client   │
+│                 │    │   (CLI Client)  │    │   Library       │
 └─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
           │ HTTP/WS              │ HTTP                  │ HTTP
           │                      │                       │
           └──────────────────────┼───────────────────────┘
                                  │
                     ┌─────────────┴───────────────┐
-                    │    Ollama Queue Server      │
+                    │  ollama-queue-server        │
                     │                             │
                     │  ┌─────────┐ ┌─────────────┐│
                     │  │ Web UI  │ │  HTTP API   ││
                     │  └─────────┘ └─────────────┘│
                     │                             │
                     │  ┌─────────┐ ┌─────────────┐│
-                    │  │Priority │ │   Retry     ││
+                    │  │Priority │ │    Cron     ││
                     │  │Scheduler│ │  Scheduler  ││
                     │  └─────────┘ └─────────────┘│
                     │                             │
@@ -169,6 +175,16 @@ The server provides a real-time web interface accessible at `http://localhost:71
                     │  └─────────┘ └─────────────┘│
                     └─────────────────────────────┘
 ```
+
+### Architecture Components
+
+- **ollama-queue-server**: Standalone server binary with embedded queue management, HTTP API, and Web UI
+- **ollama-queue**: CLI client for interacting with the server via HTTP API  
+- **Web Interface**: Browser-based real-time monitoring and task management
+- **HTTP Client Library**: Go package for programmatic server integration
+- **Cron Scheduler**: Built-in recurring task scheduling with Unix cron expressions
+- **Priority Scheduler**: Multi-level priority queue with FIFO ordering
+- **BadgerDB Storage**: Persistent task and cron storage with crash recovery
 
 ## Batch Task Submission
 
@@ -274,6 +290,119 @@ task := queue.NewEmbedTask("nomic-embed-text", "This is a sample text for embedd
 )
 ```
 
+## Cron Scheduling
+
+Ollama Queue supports Unix-style cron expressions for recurring tasks, enabling automatic task execution on a schedule.
+
+### Cron Expression Format
+
+Uses the standard 5-field cron expression format:
+```
+* * * * *
+│ │ │ │ │
+│ │ │ │ └─── Day of week (0-7, Sunday = 0 or 7)
+│ │ │ └───── Month (1-12)
+│ │ └─────── Day of month (1-31)
+│ └───────── Hour (0-23)
+└─────────── Minute (0-59)
+```
+
+### Cron Examples
+
+```bash
+# Every minute
+ollama-queue cron add --name "Health Check" --schedule "* * * * *" --model qwen3 --prompt "System status check"
+
+# Every hour at minute 0
+ollama-queue cron add --name "Hourly Report" --schedule "0 * * * *" --model qwen3 --prompt "Generate hourly summary"
+
+# Every day at 9 AM (weekdays only)
+ollama-queue cron add --name "Daily Report" --schedule "0 9 * * 1-5" --model qwen3 --prompt "Generate daily business report"
+
+# Every Monday at 8:30 AM
+ollama-queue cron add --name "Weekly Summary" --schedule "30 8 * * 1" --model qwen3 --prompt "Generate weekly summary"
+
+# Every 15 minutes
+ollama-queue cron add --name "Monitor" --schedule "*/15 * * * *" --model qwen3 --prompt "Check system metrics"
+```
+
+### Cron Management Commands
+
+```bash
+# List all cron tasks
+ollama-queue cron list
+
+# Show specific cron task details
+ollama-queue cron show <cron-id>
+
+# Enable/disable cron tasks
+ollama-queue cron enable <cron-id>
+ollama-queue cron disable <cron-id>
+
+# Update cron task
+ollama-queue cron update <cron-id> --schedule "0 10 * * *" --priority high
+
+# Remove cron task
+ollama-queue cron remove <cron-id>
+
+# Test cron expression (shows next 5 run times)
+ollama-queue cron test --schedule "0 9 * * 1-5"
+```
+
+### Programmatic Cron Usage
+
+```go
+package main
+
+import (
+    "log"
+    "github.com/liliang-cn/ollama-queue/pkg/models"
+    "github.com/liliang-cn/ollama-queue/pkg/client"
+)
+
+func main() {
+    cli := client.New("localhost:7125")
+    
+    // Create a cron task
+    cronTask := &models.CronTask{
+        Name:     "Daily Report",
+        CronExpr: "0 9 * * 1-5", // Weekdays at 9 AM
+        Enabled:  true,
+        TaskTemplate: models.TaskTemplate{
+            Type:     models.TaskTypeGenerate,
+            Model:    "qwen3",
+            Priority: models.PriorityNormal,
+            Payload: map[string]interface{}{
+                "prompt": "Generate today's business summary",
+                "system": "You are a business analyst",
+            },
+        },
+        Metadata: map[string]interface{}{
+            "department": "analytics",
+            "type":       "daily_report",
+        },
+    }
+    
+    // Add cron task
+    cronID, err := cli.AddCronTask(cronTask)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    log.Printf("Cron task created: %s", cronID)
+    
+    // List all cron tasks
+    cronTasks, err := cli.ListCronTasks()
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    for _, task := range cronTasks {
+        log.Printf("Cron: %s - %s (%s)", task.ID, task.Name, task.CronExpr)
+    }
+}
+```
+
 ## Priority Levels
 
 The system supports four priority levels:
@@ -327,9 +456,61 @@ export RETRY_MAX_RETRIES=3
 export LOG_LEVEL="info"
 ```
 
-## Library Integration (Embedded Mode)
+## Library Integration (Go Package)
 
-You can also embed the queue manager directly in your applications:
+With the new `pkg/` package structure, Ollama Queue can be easily integrated as a library in your Go applications. You can either connect to a running server via HTTP client or embed the queue manager directly.
+
+### HTTP Client Integration (Recommended)
+
+Connect to a running `ollama-queue-server` instance:
+
+```go
+package main
+
+import (
+    "log"
+    "time"
+    
+    "github.com/liliang-cn/ollama-queue/pkg/models"
+    "github.com/liliang-cn/ollama-queue/pkg/client"
+    "github.com/liliang-cn/ollama-queue/pkg/queue"
+)
+
+func main() {
+    // Connect to running ollama-queue-server
+    cli := client.New("localhost:7125")
+    
+    // Submit a chat task
+    task := queue.NewChatTask("qwen3", []models.ChatMessage{
+        {Role: "user", Content: "Hello, how are you?"},
+    }, queue.WithTaskPriority(models.PriorityHigh))
+    
+    taskID, err := cli.SubmitTask(task)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    log.Printf("Task submitted: %s", taskID)
+    
+    // Wait for completion
+    for {
+        task, err := cli.GetTask(taskID)
+        if err != nil {
+            log.Fatal(err)
+        }
+        
+        if task.Status == models.StatusCompleted {
+            log.Printf("Task completed: %v", task.Result)
+            break
+        } else if task.Status == models.StatusFailed {
+            log.Printf("Task failed: %s", task.Error)
+            break
+        }
+        
+        time.Sleep(1 * time.Second)
+    }
+}
+```
 
 ### Basic Library Usage
 
@@ -342,7 +523,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"github.com/liliang-cn/ollama-queue/pkg/queue"
 )
 
@@ -409,7 +590,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"github.com/liliang-cn/ollama-queue/pkg/client"
 	"github.com/liliang-cn/ollama-queue/pkg/queue"
 )
@@ -486,7 +667,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 	"github.com/liliang-cn/ollama-queue/pkg/queue"
 )
 
@@ -710,7 +891,7 @@ import (
     "time"
     "github.com/liliang-cn/ollama-queue/pkg/client"
     "github.com/liliang-cn/ollama-queue/pkg/queue"
-    "github.com/liliang-cn/ollama-queue/internal/models"
+    "github.com/liliang-cn/ollama-queue/pkg/models"
 )
 
 // Connect to queue server
@@ -814,15 +995,32 @@ type QueueManagerInterface interface {
 
 ## CLI Commands
 
+### Server Commands
 | Command | Description | Example |
 |---------|-------------|---------|
-| `serve` | Start the queue server with web interface | `ollama-queue serve --port 7125` |
+| `ollama-queue-server` | Start the queue server with web interface | `ollama-queue-server --port 9090 --host 0.0.0.0` |
+
+### Client Commands  
+| Command | Description | Example |
+|---------|-------------|---------|
 | `submit` | Submit a new task to the server | `ollama-queue submit chat --model qwen3 --messages "user:Hello"` |
 | `submit batch` | Submit multiple tasks from a JSON file | `ollama-queue submit batch --file tasks.json --sync` |
 | `list` | List tasks with optional filtering | `ollama-queue list --status running --limit 10` |
 | `status` | Show task status or queue statistics | `ollama-queue status <task-id>` |
 | `cancel` | Cancel one or more tasks | `ollama-queue cancel <task-id1> <task-id2>` |
 | `priority` | Update task priority | `ollama-queue priority <task-id> high` |
+
+### Cron Commands
+| Command | Description | Example |
+|---------|-------------|---------|
+| `cron add` | Create a new cron task | `ollama-queue cron add --name "Daily" --schedule "0 9 * * *" --model qwen3 --prompt "Generate report"` |
+| `cron list` | List all cron tasks | `ollama-queue cron list` |
+| `cron show` | Show specific cron task details | `ollama-queue cron show <cron-id>` |
+| `cron enable` | Enable a cron task | `ollama-queue cron enable <cron-id>` |
+| `cron disable` | Disable a cron task | `ollama-queue cron disable <cron-id>` |
+| `cron update` | Update cron task settings | `ollama-queue cron update <cron-id> --schedule "0 10 * * *"` |
+| `cron remove` | Delete a cron task | `ollama-queue cron remove <cron-id>` |
+| `cron test` | Test cron expression | `ollama-queue cron test --schedule "0 9 * * 1-5"` |
 
 ## Architecture
 

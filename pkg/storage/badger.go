@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/liliang-cn/ollama-queue/internal/models"
+	"github.com/liliang-cn/ollama-queue/pkg/models"
 )
 
 // Storage interface defines the operations for task storage
@@ -450,7 +450,11 @@ func (s *BadgerStorage) LoadCronTask(cronID string) (*models.CronTask, error) {
 		})
 	})
 	
-	return &cronTask, err
+	if err != nil {
+		return nil, err
+	}
+	
+	return &cronTask, nil
 }
 
 // DeleteCronTask deletes a cron task from the database
