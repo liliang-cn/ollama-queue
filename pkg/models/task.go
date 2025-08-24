@@ -1,17 +1,32 @@
 package models
 
 import (
-	"context"
 	"time"
+	
+	"github.com/google/uuid"
 )
 
-// TaskType represents the type of task
-type TaskType string
+// ExecutorType represents the type of executor (ollama, openai, script, etc.)
+type ExecutorType string
 
+// Common executor types
 const (
-	TaskTypeChat     TaskType = "chat"
-	TaskTypeGenerate TaskType = "generate"
-	TaskTypeEmbed    TaskType = "embed"
+	ExecutorTypeOllama ExecutorType = "ollama"
+	ExecutorTypeOpenAI ExecutorType = "openai"
+	ExecutorTypeScript ExecutorType = "script"
+	ExecutorTypeHTTP   ExecutorType = "http"
+)
+
+// ExecutorAction represents the action within an executor
+type ExecutorAction string
+
+// Common executor actions
+const (
+	ActionChat     ExecutorAction = "chat"
+	ActionGenerate ExecutorAction = "generate"
+	ActionEmbed    ExecutorAction = "embed"
+	ActionExecute  ExecutorAction = "execute"
+	ActionRequest  ExecutorAction = "request"
 )
 
 // Priority represents task priority levels
@@ -35,71 +50,67 @@ const (
 	StatusCancelled TaskStatus = "cancelled"
 )
 
-// Task represents a task in the queue
-type Task struct {
-	ID          string                 `json:"id"`
-	Type        TaskType              `json:"type"`
-	Priority    Priority              `json:"priority"`
-	Status      TaskStatus            `json:"status"`
-	Model       string                `json:"model"`
-	Payload     any                   `json:"payload"`
-	Options     map[string]any        `json:"options"`
-	CreatedAt   time.Time             `json:"created_at"`
-	ScheduledAt *time.Time            `json:"scheduled_at,omitempty"`
-	StartedAt   *time.Time            `json:"started_at,omitempty"`
-	CompletedAt *time.Time            `json:"completed_at,omitempty"`
-	Error       string                `json:"error,omitempty"`
-	Result      any                   `json:"result,omitempty"`
-	RetryCount  int                   `json:"retry_count"`
-	MaxRetries  int                   `json:"max_retries"`
-	RemoteExecution bool              `json:"remote_execution,omitempty"`
-	ExecutedOn      string            `json:"executed_on,omitempty"`
-	Context     context.Context       `json:"-"`
-	CancelFunc  context.CancelFunc    `json:"-"`
+// GenericTask represents a generic task that can be executed by any executor
+type GenericTask struct {
+	ID           string                 `json:"id"`
+	ExecutorType ExecutorType           `json:"executor_type"`  // Which executor to use
+	Action       ExecutorAction         `json:"action"`         // What action to perform
+	Payload      map[string]interface{} `json:"payload"`        // Generic payload data
+	Model        string                 `json:"model,omitempty"`// Optional model identifier
+	Priority     Priority               `json:"priority"`
+	Status       TaskStatus             `json:"status"`
+	CreatedAt    time.Time              `json:"created_at"`
+	StartedAt    *time.Time             `json:"started_at,omitempty"`
+	CompletedAt  *time.Time             `json:"completed_at,omitempty"`
+	ExecutedOn   string                 `json:"executed_on,omitempty"`
+	Result       interface{}            `json:"result,omitempty"`
+	Error        string                 `json:"error,omitempty"`
+	Retries      int                    `json:"retries"`
+	ScheduledAt  *time.Time             `json:"scheduled_at,omitempty"`
 }
 
-// TaskResult represents the result of a completed task
-type TaskResult struct {
-	TaskID  string      `json:"task_id"`
-	Success bool        `json:"success"`
-	Data    any    `json:"data,omitempty"`
-	Error   string      `json:"error,omitempty"`
+// ChatMessage represents a single chat message
+type ChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
-// StreamChunk represents a chunk of streamed data
-type StreamChunk struct {
-	Data  string `json:"data"`
-	Error error  `json:"error,omitempty"`
-	Done  bool   `json:"done"`
+// CreateGenericTask creates a new generic task
+func CreateGenericTask(executorType ExecutorType, action ExecutorAction, payload map[string]interface{}) *GenericTask {
+	return &GenericTask{
+		ID:           GenerateID(),
+		ExecutorType: executorType,
+		Action:       action,
+		Payload:      payload,
+		Priority:     PriorityNormal,
+		Status:       StatusPending,
+		CreatedAt:    time.Now(),
+		Retries:      0,
+	}
 }
 
-// TaskEvent represents an event in the task lifecycle
-type TaskEvent struct {
-	TaskID    string     `json:"task_id"`
-	Type      string     `json:"type"`
-	Status    TaskStatus `json:"status"`
-	Timestamp time.Time  `json:"timestamp"`
-	Data      any       `json:"data,omitempty"`
+// CreateOllamaTask creates a new Ollama-based task (helper function)
+func CreateOllamaTask(action ExecutorAction, model string, payload map[string]interface{}) *GenericTask {
+	task := CreateGenericTask(ExecutorTypeOllama, action, payload)
+	task.Model = model
+	return task
 }
 
-// TaskFilter for querying tasks
-type TaskFilter struct {
-	Status   []TaskStatus `json:"status,omitempty"`
-	Type     []TaskType   `json:"type,omitempty"`
-	Priority []Priority   `json:"priority,omitempty"`
-	Limit    int          `json:"limit,omitempty"`
-	Offset   int          `json:"offset,omitempty"`
+// Clone creates a deep copy of the generic task
+func (gt *GenericTask) Clone() *GenericTask {
+	newTask := *gt
+	
+	// Deep copy payload
+	newPayload := make(map[string]interface{})
+	for k, v := range gt.Payload {
+		newPayload[k] = v
+	}
+	newTask.Payload = newPayload
+	
+	return &newTask
 }
 
-// QueueStats provides statistics about the queue
-type QueueStats struct {
-	PendingTasks   int            `json:"pending_tasks"`
-	RunningTasks   int            `json:"running_tasks"`
-	CompletedTasks int            `json:"completed_tasks"`
-	FailedTasks    int            `json:"failed_tasks"`
-	CancelledTasks int            `json:"cancelled_tasks"`
-	TotalTasks     int            `json:"total_tasks"`
-	QueuesByPriority map[Priority]int `json:"queues_by_priority"`
-	WorkersActive  int            `json:"workers_active"`
-	WorkersIdle    int            `json:"workers_idle"`
+// GenerateID generates a new unique ID using UUID
+func GenerateID() string {
+	return uuid.New().String()
 }

@@ -17,6 +17,10 @@ type OllamaPlugin struct {
 
 // NewOllamaPlugin creates a new Ollama executor plugin
 func NewOllamaPlugin(config *models.Config) (*OllamaPlugin, error) {
+	if config == nil {
+		config = models.DefaultConfig()
+	}
+	
 	clientOptions := []ollama.ClientOption{
 		ollama.WithHost(config.OllamaHost),
 	}

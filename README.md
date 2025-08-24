@@ -1,136 +1,318 @@
 # Ollama Queue
 
-一个**高性能通用任务队列系统**，支持多种执行器插件，包括Ollama模型、OpenAI API、脚本执行等。
+**Universal Task Queue Go Library**
 
-**📖 [中文文档](README_zh.md)** | **🌟 [English](README.md)**
+A flexible task execution library supporting multiple executor plugins including Ollama, OpenAI, script execution, and more. Fully decoupled architecture with support for both synchronous and streaming task execution.
 
-## ✨ 特性
+**🌟 [English](README.md)** | **📖 [中文文档](README_zh.md)**
 
-- 🚀 **通用架构**: 支持多种执行器类型 (Ollama, OpenAI, Script等)
-- 🏗️ **客户端-服务器分离**: 独立的server和client二进制文件
-- 🌐 **实时Web UI**: 浏览器管理界面
-- ⏰ **Cron调度**: Unix风格定时任务
-- 📋 **优先级调度**: 四级优先级 (1, 5, 10, 15)
-- 💾 **持久化存储**: BadgerDB崩溃恢复
-- 📊 **实时监控**: 任务状态追踪
-- 📚 **通用架构**: 可作为Go库使用
+## ✨ Features
 
-## 🚀 快速开始
+- 🚀 **Universal Task Queue** - Not limited to specific execution engines
+- 🔌 **Plugin Architecture** - Support for multiple executor types (Ollama, OpenAI, Script, HTTP)
+- ⚡ **Sync & Stream Execution** - Real-time output streaming support
+- 🛡️ **Type Safe** - Strongly typed task and configuration system
+- 📦 **Pure Go Library** - No external dependencies, easy to embed in other projects
 
-### 安装
+## 🚀 Quick Start
+
+### Installation
+
 ```bash
 go get github.com/liliang-cn/ollama-queue
 ```
 
-### 服务器模式
-```bash
-# 启动服务器 (默认端口7125)
-ollama-queue-server
+### Basic Usage
 
-# 访问Web界面
-open http://localhost:7125
-```
-
-### 客户端使用
-```bash
-# 提交Ollama任务
-ollama-queue submit chat --model qwen3 --messages "user:Hello!"
-
-# 提交脚本任务 (新功能)
-ollama-queue submit generic --executor script --action execute --command "python script.py"
-
-# 定时任务 (支持所有执行器)
-ollama-queue cron add --name "Daily Report" --schedule "0 9 * * 1-5" --executor ollama --action generate --model qwen3 --prompt "Generate daily business report"
-
-# 脚本定时任务
-ollama-queue cron add --name "Backup" --schedule "0 2 * * *" --executor script --action execute --command "python backup.py"
-
-# OpenAI定时任务  
-ollama-queue cron add --name "Analysis" --schedule "0 */6 * * *" --executor openai --action chat --model gpt-4 --prompt "Analyze system metrics"
-
-# 查看队列状态
-ollama-queue status
-```
-
-## 📚 作为库使用
-
-### HTTP客户端模式 (推荐)
 ```go
+package main
+
 import (
-    "github.com/liliang-cn/ollama-queue/pkg/client"
+    "context"
+    "log"
+    
     "github.com/liliang-cn/ollama-queue/pkg/models"
+    "github.com/liliang-cn/ollama-queue/pkg/executor"
 )
 
-// 连接到运行中的服务器
-cli := client.New("localhost:7125")
+func main() {
+    // 1. Create executor registry
+    registry := executor.NewExecutorRegistry()
+    
+    // 2. Register Ollama executor
+    config := models.DefaultConfig()
+    ollamaPlugin, err := executor.NewOllamaPlugin(config)
+    if err != nil {
+        log.Fatal(err)
+    }
+    registry.Register(models.ExecutorTypeOllama, ollamaPlugin)
+    
+    // 3. Create chat task
+    task := models.CreateOllamaTask(
+        models.ActionChat,
+        "qwen3",
+        map[string]interface{}{
+            "messages": []models.ChatMessage{
+                {Role: "user", Content: "Hello!"},
+            },
+        },
+    )
+    
+    // 4. Execute task
+    result, err := registry.ExecuteTask(context.Background(), task)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    log.Printf("Result: %+v", result.Data)
+}
+```
 
-// 提交任务到Ollama
-task := models.CreateOllamaTask(
+## Supported Executors
+
+### Ollama Executor
+
+```go
+// Chat task
+chatTask := models.CreateOllamaTask(
     models.ActionChat,
-    "qwen3", 
+    "llama3",
     map[string]interface{}{
         "messages": []models.ChatMessage{
-            {Role: "user", Content: "Hello!"},
+            {Role: "user", Content: "Explain Go goroutines"},
         },
+        "system": "You are a Go language expert",
     },
 )
-taskID, _ := cli.SubmitGenericTask(task)
 
-// 提交脚本执行任务
+// Text generation task
+generateTask := models.CreateOllamaTask(
+    models.ActionGenerate,
+    "llama3",
+    map[string]interface{}{
+        "prompt": "Write a quicksort algorithm",
+        "system": "Please implement in Go language",
+    },
+)
+
+// Text embedding task
+embedTask := models.CreateOllamaTask(
+    models.ActionEmbed,
+    "nomic-embed-text",
+    map[string]interface{}{
+        "input": "This is the text to embed",
+    },
+)
+```
+
+### Script Executor
+
+```go
+// Configure script executor
+scriptConfig := executor.ScriptConfig{
+    WorkingDir:  "./scripts",
+    AllowedExts: []string{".py", ".sh", ".js"},
+}
+scriptPlugin, _ := executor.NewScriptPlugin(scriptConfig)
+registry.Register(models.ExecutorTypeScript, scriptPlugin)
+
+// Execute command
+commandTask := models.CreateGenericTask(
+    models.ExecutorTypeScript,
+    models.ActionExecute,
+    map[string]interface{}{
+        "command": "echo 'Hello from script!'",
+    },
+)
+
+// Execute script file
 scriptTask := models.CreateGenericTask(
     models.ExecutorTypeScript,
     models.ActionExecute,
     map[string]interface{}{
-        "command": "python analyze.py",
+        "script": "process_data.py",
+        "args":   []string{"--input", "data.txt"},
+        "env": map[string]string{
+            "PYTHONPATH": "/opt/myapp",
+        },
     },
 )
-cli.SubmitGenericTask(scriptTask)
 ```
 
-### 嵌入式使用
-```go
-import "github.com/liliang-cn/ollama-queue/pkg/executor"
+### OpenAI Executor
 
-// 创建执行器注册表
+```go
+// Configure OpenAI executor
+openaiConfig := executor.OpenAIConfig{
+    APIKey:  "your-api-key",
+    BaseURL: "https://api.openai.com/v1",
+}
+openaiPlugin, _ := executor.NewOpenAIPlugin(openaiConfig)
+registry.Register(models.ExecutorTypeOpenAI, openaiPlugin)
+
+// Chat task
+openaiTask := models.CreateGenericTask(
+    models.ExecutorTypeOpenAI,
+    models.ActionChat,
+    map[string]interface{}{
+        "messages": []models.ChatMessage{
+            {Role: "user", Content: "Explain machine learning"},
+        },
+    },
+)
+openaiTask.Model = "gpt-4"
+```
+
+## Streaming Execution
+
+```go
+// Create streaming task
+task := models.CreateOllamaTask(
+    models.ActionChat,
+    "qwen3",
+    map[string]interface{}{
+        "messages": []models.ChatMessage{
+            {Role: "user", Content: "Write a poem"},
+        },
+    },
+)
+
+// Execute streaming task
+streamChan, err := registry.ExecuteStreamTask(context.Background(), task)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Handle streaming output
+for chunk := range streamChan {
+    if chunk.Error != nil {
+        log.Printf("Error: %v", chunk.Error)
+        break
+    }
+    
+    if chunk.Data != nil {
+        fmt.Print(chunk.Data)
+    }
+    
+    if chunk.Done {
+        fmt.Println("\nCompleted")
+        break
+    }
+}
+```
+
+## Core Concepts
+
+### GenericTask
+
+Universal task structure supporting all executor types:
+
+```go
+type GenericTask struct {
+    ID           string                 // Task ID
+    ExecutorType ExecutorType           // Executor type
+    Action       ExecutorAction         // Execution action
+    Payload      map[string]interface{} // Task payload
+    Model        string                 // Model name (optional)
+    Priority     Priority               // Task priority
+    Status       TaskStatus             // Task status
+    // ... timestamp and result fields
+}
+```
+
+### ExecutorRegistry
+
+Executor registry managing all executor plugins:
+
+```go
 registry := executor.NewExecutorRegistry()
 
-// 注册自定义执行器
-scriptPlugin, _ := executor.NewScriptPlugin(executor.ScriptConfig{
-    WorkingDir: "./scripts",
-})
-registry.Register(models.ExecutorTypeScript, scriptPlugin)
+// Register executor
+registry.Register(models.ExecutorTypeOllama, ollamaPlugin)
 
-// 提交和执行任务
-task := models.CreateGenericTask(models.ExecutorTypeScript, models.ActionExecute, payload)
-result, _ := registry.ExecuteTask(ctx, task)
+// Check if task can be executed
+if registry.CanExecuteTask(task) {
+    result, err := registry.ExecuteTask(ctx, task)
+}
+
+// List all registered executors
+executors := registry.ListExecutors()
 ```
 
-## 🎯 支持的执行器
+## Task Status and Priority
 
-| 执行器 | 动作 | 描述 |
-|-------|------|------|
-| `ollama` | `chat`, `generate`, `embed` | 本地Ollama模型 |
-| `openai` | `chat`, `generate` | OpenAI API兼容服务 |
-| `script` | `execute` | 执行脚本和命令 |
+### Task Status
 
-## 📝 示例
+- `StatusPending` - Waiting for execution
+- `StatusRunning` - Currently executing
+- `StatusCompleted` - Execution completed
+- `StatusFailed` - Execution failed
+- `StatusCancelled` - Cancelled
 
-查看 `examples/` 目录获取完整示例：
-- `examples/universal_queue/` - 通用队列库使用示例
-- `examples/basic/` - 基本任务提交
-- `examples/cron/` - 定时任务示例
+### Task Priority
 
-## 🧪 测试
+- `PriorityLow` (1) - Low priority
+- `PriorityNormal` (5) - Normal priority
+- `PriorityHigh` (10) - High priority
+- `PriorityCritical` (15) - Critical priority
 
-```bash
-go test ./...
-go run examples/universal_queue/main.go
+## Example Code
+
+### Basic Usage Example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    
+    "github.com/liliang-cn/ollama-queue/pkg/models"
+    "github.com/liliang-cn/ollama-queue/pkg/executor"
+)
+
+func main() {
+    // Create executor registry
+    registry := executor.NewExecutorRegistry()
+    
+    // Register Ollama executor
+    config := models.DefaultConfig()
+    ollamaPlugin, err := executor.NewOllamaPlugin(config)
+    if err != nil {
+        log.Fatal(err)
+    }
+    registry.Register(models.ExecutorTypeOllama, ollamaPlugin)
+    
+    // Register script executor
+    scriptConfig := executor.ScriptConfig{
+        WorkingDir:  "./",
+        AllowedExts: []string{".sh", ".py", ".js"},
+    }
+    scriptPlugin, err := executor.NewScriptPlugin(scriptConfig)
+    if err != nil {
+        log.Fatal(err)
+    }
+    registry.Register(models.ExecutorTypeScript, scriptPlugin)
+    
+    // Execute script task
+    task := models.CreateGenericTask(
+        models.ExecutorTypeScript,
+        models.ActionExecute,
+        map[string]interface{}{
+            "command": "echo 'Hello from ollama-queue library!'",
+        },
+    )
+    
+    result, err := registry.ExecuteTask(context.Background(), task)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    fmt.Printf("Task execution result: %+v\n", result.Data)
+}
 ```
 
-## 📄 许可证
+## License
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
-
----
-
-**ollama-queue**: 通用任务调度平台，支持多种执行器插件 🚀
+MIT License
